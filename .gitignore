@@ -1,0 +1,123 @@
+# ============================================
+# General Ignored Files
+# ============================================
+*.class
+*.log
+*.pyc
+*.swp
+*.mode1v3
+*.mode2v3
+*.moved-aside
+*.pbxuser
+*.perspectivev3
+*.g.dart
+*.freezed.dart
+*.map.json
+*.symbols
+*.keystore
+*.jks
+*.iml
+*.xcuserstate
+*.xcworkspace
+*.lock
+
+.DS_Store
+.metadata
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.vagrant/
+.vscode/
+.swiftpm/
+.idea/
+.cxx/
+packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
+todo.txt
+CLAUDE.md
+
+# ============================================
+# Flutter / Dart / Pub / Build Output
+# ============================================
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+**/build/
+**/doc/api/
+
+pubspec.lock
+
+# ============================================
+# Flutter Generated iOS Artifacts
+# ============================================
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_assets/
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/ephemeral/
+ios/Flutter/app.flx
+ios/Flutter/app.zip
+ios/ServiceDefinitions.json
+ios/Runner/
+
+ios/Pods/
+ios/.generated/
+ios/Runner.xcworkspace/
+ios/Runner.xcodeproj/project.xcworkspace/
+ios/Runner/GeneratedPluginRegistrant.*
+ios/DerivedData/
+ios/Icon?
+ios/profile
+ios/xcuserdata/
+**/*sync/
+**/.sconsign.dblite
+**/.tags*
+
+
+assets/stockfish/
+
+
+# ============================================
+# Android Build and Gradle Output
+# ============================================
+android/.gradle/
+android/app/build/
+android/app/debug
+android/app/profile
+android/app/release
+.gradle
+.gradle-wrapper.jar
+gradlew
+gradlew.bat
+local.properties
+captures/
+GeneratedPluginRegistrant.java
+key.properties
+
+# ============================================
+# Tests & Coverage
+# ============================================
+test/.test_coverage.dart
+coverage/
+coverage_badge.svg
+
+# ============================================
+# Secrets and Config
+# ============================================
+.env
+.env.local
+.env.production
+/android/app/google-services.json
+/ios/Runner/GoogleService-Info.plist
+
+# ============================================
+# ML Models
+# ============================================
+# assets/models/*.tflite
