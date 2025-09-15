@@ -11,6 +11,7 @@ import '../screens/saved_positions_screen/saved_positions_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/pro_screen.dart';
 import '../services/image_processing/image_processor.dart';
+import '../services/image_processing/image_processor_pytorch.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -25,7 +26,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final TextEditingController _fenController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final ImageProcessor _imageProcessor = ImageProcessor();
+  final ImageProcessorPyTorch _imageProcessorPyTorch = ImageProcessorPyTorch();
   int _selectedIndex = 0;
+  String _selectedScanType = '2D'; // Track which model is selected
   
   late AnimationController _fadeController;
   late AnimationController _pulseController;
@@ -74,11 +77,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _initializeImageProcessor() async {
     try {
-      if (kDebugMode) debugPrint('HomeScreen: Starting image processor initialization...');
+      if (kDebugMode) debugPrint('HomeScreen: Starting image processors initialization...');
+      
+      // Initialize 2D image processor
       await _imageProcessor.init();
-      if (kDebugMode) debugPrint('HomeScreen: Image processor initialization completed');
+      if (kDebugMode) debugPrint('HomeScreen: 2D image processor initialized successfully');
+      
+      // Test PyTorch availability first
+      final availability = await _imageProcessorPyTorch.testAvailability();
+      if (kDebugMode) debugPrint('HomeScreen: PyTorch availability: $availability');
+      
+      // Initialize PyTorch 3D image processor
+      try {
+        await _imageProcessorPyTorch.init();
+        if (kDebugMode) debugPrint('HomeScreen: PyTorch 3D image processor initialized successfully');
+      } catch (pytorchError) {
+        if (kDebugMode) debugPrint('HomeScreen: PyTorch initialization failed: $pytorchError');
+        // Continue without PyTorch - app can still use 2D model
+      }
+      
+      if (kDebugMode) debugPrint('HomeScreen: Image processors initialization completed');
     } catch (e) {
-      if (kDebugMode) debugPrint('HomeScreen: Failed to initialize image processor: $e');
+      if (kDebugMode) debugPrint('HomeScreen: Failed to initialize image processors: $e');
     }
   }
   
@@ -182,7 +202,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         
         // Use io.File explicitly to avoid dartchess File conflict
         final imageFile = io.File(image.path);
-        final fen = await _imageProcessor.processImageFile(imageFile);
+        
+        // Use the selected model type
+        String fen;
+        if (_selectedScanType == '3D' && _imageProcessorPyTorch.isInitialized) {
+          fen = await _imageProcessorPyTorch.processImageFile(imageFile);
+        } else {
+          if (_selectedScanType == '3D' && !_imageProcessorPyTorch.isInitialized) {
+            if (kDebugMode) debugPrint('HomeScreen: PyTorch not initialized, falling back to 2D model');
+          }
+          fen = await _imageProcessor.processImageFile(imageFile);
+        }
+            
+        if (kDebugMode) debugPrint('Processed with $_selectedScanType model: $fen');
         
         setState(() {
           _isProcessing = false;
@@ -620,7 +652,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Camera • Gallery • 2D/3D',
+                  'Camera • Gallery • $_selectedScanType Model',
                   style: TextStyle(
                     fontSize: 14,
                     color: context.secondaryTextColor,
@@ -819,81 +851,85 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildScanOptionsModal() {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.75,
-      maxChildSize: 0.9,
-      minChildSize: 0.4,
-      builder: (context, scrollController) {
-        return Container(
-          decoration: BoxDecoration(
-            color: context.backgroundColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border(
-              top: BorderSide(color: context.borderColor, width: 1),
-            ),
-          ),
-          child: SafeArea(
-            child: SingleChildScrollView(
-              controller: scrollController,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-              // Handle
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: context.secondaryTextColor.withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(2),
+    return StatefulBuilder(
+      builder: (context, setModalState) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.75,
+          maxChildSize: 0.9,
+          minChildSize: 0.4,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                color: context.backgroundColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border(
+                  top: BorderSide(color: context.borderColor, width: 1),
+                ),
+              ),
+              child: SafeArea(
+                child: SingleChildScrollView(
+                  controller: scrollController,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                  // Handle
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: context.secondaryTextColor.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 20),
+                  
+                  Text(
+                    'Scan Chess Position',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w600,
+                      color: context.primaryTextColor,
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 6),
+                  
+                  Text(
+                    'Choose your scanning method',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: context.secondaryTextColor,
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Scan Type Options
+                  _buildScanTypeSection(setModalState),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Input Method Options  
+                  _buildInputMethodSection(),
+                      ],
+                    ),
                   ),
                 ),
               ),
-              
-              const SizedBox(height: 20),
-              
-              Text(
-                'Scan Chess Position',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                  color: context.primaryTextColor,
-                ),
-              ),
-              
-              const SizedBox(height: 6),
-              
-              Text(
-                'Choose your scanning method',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: context.secondaryTextColor,
-                ),
-              ),
-              
-              const SizedBox(height: 24),
-              
-              // Scan Type Options
-              _buildScanTypeSection(),
-              
-              const SizedBox(height: 24),
-              
-              // Input Method Options  
-              _buildInputMethodSection(),
-                  ],
-                ),
-              ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
   }
 
-  Widget _buildScanTypeSection() {
+  Widget _buildScanTypeSection([Function? setModalState]) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -914,17 +950,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 'Standard board scan',
                 Icons.grid_view_rounded,
                 true,
-                () => _handleScanType('2D'),
+                () => _handleScanType('2D', setModalState),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _buildScanTypeCard(
                 '3D',
-                'Coming soon',
+                _imageProcessorPyTorch.isInitialized 
+                  ? 'Advanced PyTorch model' 
+                  : 'PyTorch unavailable',
                 Icons.view_in_ar_rounded,
-                false,
-                null,
+                _imageProcessorPyTorch.isInitialized,
+                _imageProcessorPyTorch.isInitialized 
+                  ? () => _handleScanType('3D', setModalState)
+                  : null,
               ),
             ),
           ],
@@ -964,18 +1004,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildScanTypeCard(String title, String subtitle, IconData icon, bool enabled, VoidCallback? onTap) {
+    final isSelected = _selectedScanType == title;
+    
     return GestureDetector(
       onTap: enabled ? onTap : null,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: enabled 
-            ? context.surfaceColor 
+            ? (isSelected 
+                ? AppColors.columbiaBlue.withOpacity(0.1)
+                : context.surfaceColor)
             : context.surfaceColor.withOpacity(0.5),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: enabled ? context.borderColor : context.borderColor.withOpacity(0.5),
-            width: 1,
+            color: enabled 
+              ? (isSelected 
+                  ? AppColors.columbiaBlue 
+                  : context.borderColor)
+              : context.borderColor.withOpacity(0.5),
+            width: isSelected ? 2 : 1,
           ),
         ),
         child: Column(
@@ -1090,13 +1138,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  void _handleScanType(String type) {
-    // For now, just show feedback
+  void _handleScanType(String type, [Function? setModalState]) {
+    setState(() {
+      _selectedScanType = type;
+    });
+    
+    // Also update the modal state if provided
+    if (setModalState != null) {
+      setModalState(() {
+        _selectedScanType = type;
+      });
+    }
+    
+    HapticFeedback.selectionClick();
+    
+    if (kDebugMode) debugPrint('Selected scan type: $type');
+    
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$type scan selected'),
+        content: Text('$type model selected'),
         backgroundColor: AppColors.columbiaBlue,
         behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 1),
       ),
     );
   }
