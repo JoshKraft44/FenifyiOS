@@ -9,6 +9,7 @@ import 'package:flutter/services.dart' show MethodChannel;
 import 'package:dartchess/dartchess.dart';
 import '../../constants/app_constants.dart';
 import '../../services/dartchess_validation_service.dart';
+import 'opencv_board_detector.dart';
 
 /// Handles chess position recognition from images using TensorFlow Lite
 /// Processes images through native Android/iOS implementations for optimal performance
@@ -132,15 +133,37 @@ class ImageProcessor {
     }
   }
 
-  /// Processes image using optimized native Android/iOS pipeline
+  /// Processes image using optimized native Android/iOS pipeline with OpenCV enhancement
   /// Includes automatic board orientation detection and chess rule validation
   Future<String> _processWithNativeKotlinPipeline(io.File imageFile) async {
     try {
       final imageBytes = await imageFile.readAsBytes();
 
+      // Smart OpenCV enhancement - only apply to images that actually need improvement
+      Uint8List finalImageBytes = imageBytes;
+      bool opencvUsed = false;
+       // Check if image likely needs cropping improvement
+      final needsImprovement = await _imageNeedsCropping(imageBytes);
+      if (needsImprovement) {
+        try {
+            final enhancedImageBytes = await OpenCVBoardDetector.detectAndCropChessboard(imageBytes);
+            if (enhancedImageBytes != null) {
+                finalImageBytes = enhancedImageBytes;
+                opencvUsed = true;
+              }
+            } catch (e) {
+              if (kDebugMode) {
+                print('OpenCV processing failed, using original: $e');
+              }
+        }
+
+      if (kDebugMode) {
+        print('OpenCV enhancement: ${opencvUsed ? "APPLIED" : "SKIPPED"} (needs improvement: $needsImprovement)');
+      }
+
       // Delegate to native implementation for optimal performance
       final fen = await _channel.invokeMethod('processChessboard', {
-        'imageBytes': imageBytes,
+        'imageBytes': finalImageBytes,
       });
 
       if (fen != null && fen is String && fen.isNotEmpty) {
@@ -435,6 +458,53 @@ class ImageProcessor {
     }
     
     return flipped;
+  }
+
+  /// Determines if an image likely needs cropping improvement
+  /// Analyzes aspect ratio and content to decide if OpenCV should be applied
+  Future<bool> _imageNeedsCropping(Uint8List imageBytes) async {
+    try {
+      // Decode image to check dimensions
+      final image = img.decodeImage(imageBytes);
+      if (image == null) return false;
+      
+      final width = image.width;
+      final height = image.height;
+      final aspectRatio = width / height;
+      
+      if (kDebugMode) {
+        print('Image analysis: ${width}x$height, aspect ratio: ${aspectRatio.toStringAsFixed(2)}');
+      }
+      
+      // If image is already roughly square (good for chess boards), likely doesn't need improvement
+      if (aspectRatio > 0.8 && aspectRatio < 1.25) {
+        if (kDebugMode) print('Image is already roughly square - skipping OpenCV');
+        return false;
+      }
+      
+      // If image is very wide or very tall, likely needs cropping
+      if (aspectRatio < 0.5 || aspectRatio > 2.0) {
+        if (kDebugMode) print('Image has extreme aspect ratio - applying OpenCV');
+        return true;
+      }
+      
+      // For vertical screenshots (common case), apply OpenCV if board might be small in frame
+      if (aspectRatio < 0.8) { // Taller than wide (vertical screenshot)
+        // Check if the image seems to have a lot of extra content
+        // Simple heuristic: if height is much larger than width, likely has extra UI elements
+        if (height > width * 1.5) {
+          if (kDebugMode) print('Tall vertical image - likely needs cropping');
+          return true;
+        }
+      }
+      
+      if (kDebugMode) print('Image seems adequately cropped - skipping OpenCV');
+      return false;
+      
+    } catch (e) {
+      if (kDebugMode) print('Error analyzing image for cropping needs: $e');
+      return false; // If we can't analyze, don't risk breaking good images
+    }
   }
 
   /// Processes raw image bytes - delegates to native implementation for performance

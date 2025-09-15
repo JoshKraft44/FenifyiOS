@@ -396,8 +396,4 @@ class StockfishService with DisposableMixin {
     if (kDebugMode) debugPrint('Success: Stockfish service stopped (can be restarted)');
   }
   
-  /// Legacy dispose method for backward compatibility
-  Future<void> dispose() async {
-    await super.dispose();
-  }
 }

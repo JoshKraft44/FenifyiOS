@@ -70,7 +70,7 @@ void main() {
       await tester.pumpAndSettle();
       
       // Tap flip board button
-      final flipButton = find.byIcon(Icons.flip_camera_android);
+      final flipButton = find.byIcon(Icons.flip_to_back);
       await tester.tap(flipButton);
       
       // Should provide immediate visual feedback

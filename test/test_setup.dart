@@ -90,7 +90,7 @@ class TestSetup {
     print('OK Data Integrity: Corruption detection, Consistency, Recovery');
     print('OK Usability: User flows, Error clarity, Feature discovery');
     print('OK AI/ML: Model loading, Prediction validation, Batch processing');
-    print('OK Platform: iOS/Android compatibility, Performance scaling');
+    print('OK Platform: Performance scaling, Memory management');
     print('='*70);
     print('Test Status: All tests passed successfully');
     print('='*70 + '\n');

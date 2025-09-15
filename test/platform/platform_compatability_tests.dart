@@ -12,44 +12,34 @@ void main() {
   
   group('Platform Compatibility Tests', () {
     test('handles different platform conventions', () {
-      // Test platform-specific behavior
-      for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
-        debugDefaultTargetPlatformOverride = platform;
-        
-        // Validation should work the same on all platforms
-        final result = DartChessValidationService.validateFen(TestPositions.startingPosition);
-        expect(result.isValid, isTrue);
-      }
+      // Test platform behavior
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      
+      // Validation should work correctly
+      final result = DartChessValidationService.validateFen(TestPositions.startingPosition);
+      expect(result.isValid, isTrue);
       
       debugDefaultTargetPlatformOverride = null;
     });
 
-    test('performance scales appropriately by platform', () {
-      final platformResults = <String, int>{};
+    test('performance scales appropriately', () {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       
-      for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
-        debugDefaultTargetPlatformOverride = platform;
-        
-        final stopwatch = Stopwatch()..start();
-        
-        for (int i = 0; i < 100; i++) {
-          DartChessValidationService.validateFen(TestPositions.startingPosition);
-        }
-        
-        stopwatch.stop();
-        platformResults[platform.name] = stopwatch.elapsedMilliseconds;
+      final stopwatch = Stopwatch()..start();
+      
+      for (int i = 0; i < 100; i++) {
+        DartChessValidationService.validateFen(TestPositions.startingPosition);
       }
+      
+      stopwatch.stop();
       
       debugDefaultTargetPlatformOverride = null;
       
-      print('Platform Performance:');
-      platformResults.forEach((platform, time) {
-        print('- $platform: 100 validations in ${time}ms');
-      });
+      print('Performance: 100 validations in ${stopwatch.elapsedMilliseconds}ms');
     });
 
-    test('handles platform-specific memory constraints', () {
-      // Test memory usage patterns that might differ between platforms
+    test('handles memory constraints', () {
+      // Test memory usage patterns
       final positions = <ChessPosition>[];
       
       try {
@@ -65,7 +55,7 @@ void main() {
         expect(positions.length, equals(1000));
         
       } catch (e) {
-        // If platform runs out of memory, should fail gracefully
+        // If out of memory, should fail gracefully
         expect(e, isA<OutOfMemoryError>());
       } finally {
         positions.clear();

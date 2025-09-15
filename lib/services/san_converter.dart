@@ -1,4 +1,3 @@
-import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:dartchess/dartchess.dart';
 
@@ -98,20 +97,7 @@ class SanConverter {
           if (!position.isLegal(move)) {
             if (kDebugMode && false) debugPrint('Move validation failed for: $uciMove (continuing with UCI)');
             sanMoves.add(uciMove); // Keep UCI if invalid
-            
-            // ANDROID-ONLY: Try unsafe move continuation (iOS stops on invalid moves)
-            if (Platform.isAndroid) {
-              try {
-                position = position.playUnchecked(move);
-              } catch (e) {
-                // If we can't even do an unchecked move, skip this move entirely
-                if (kDebugMode && false) debugPrint('Could not play unchecked move: $uciMove');
-              }
-              continue;
-            } else {
-              // iOS: Stop processing on invalid moves (original behavior)
-              break;
-            }
+            break; // Stop processing on invalid moves
           }
 
           // Convert to SAN
