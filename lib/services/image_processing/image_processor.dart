@@ -1,4 +1,5 @@
 import 'dart:io' as io;
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -10,6 +11,7 @@ import 'package:dartchess/dartchess.dart';
 import '../../constants/app_constants.dart';
 import '../../services/dartchess_validation_service.dart';
 import 'opencv_board_detector.dart';
+import 'debug_exporter.dart';
 
 /// Handles chess position recognition from images using TensorFlow Lite
 /// Processes images through native Android/iOS implementations for optimal performance
@@ -21,6 +23,22 @@ class ImageProcessor {
   bool _isInitialized = false;
   bool _modelLoaded = false;
   static const MethodChannel _channel = MethodChannel('chess_ml_channel');
+
+  // Debug export base URL; when set in debug mode, crops or inputs may be POSTed
+  // to a local server for inspection (see tools/debug_crop_server.dart).
+  static String? _debugExportBaseUrl;
+  static set debugExportBaseUrl(String? url) {
+    _debugExportBaseUrl = url;
+    DebugExporter.baseUrl = url;
+    if (kDebugMode) {
+      if (url == null || url.isEmpty) {
+        debugPrint('DebugExporter: disabled');
+      } else {
+        debugPrint('DebugExporter: enabled → $url');
+      }
+    }
+  }
+  static String? get debugExportBaseUrl => _debugExportBaseUrl;
 
   /// Maps TensorFlow Lite model predictions to chess piece notation
   static const List<String> _pieceMapping = [
@@ -138,27 +156,37 @@ class ImageProcessor {
   Future<String> _processWithNativeKotlinPipeline(io.File imageFile) async {
     try {
       final imageBytes = await imageFile.readAsBytes();
+      // Optionally export original for debugging
+      if (kDebugMode && (_debugExportBaseUrl != null && _debugExportBaseUrl!.isNotEmpty)) {
+        final ts = DateTime.now().millisecondsSinceEpoch;
+        unawaited(DebugExporter.exportBytes(imageBytes, name: 'original_$ts.png'));
+      }
 
-      // Smart OpenCV enhancement - only apply to images that actually need improvement
+      // OpenCV enhancement - always attempt robust board detection regardless of aspect ratio
       Uint8List finalImageBytes = imageBytes;
       bool opencvUsed = false;
-       // Check if image likely needs cropping improvement
-      final needsImprovement = await _imageNeedsCropping(imageBytes);
-      if (needsImprovement) {
-        try {
-            final enhancedImageBytes = await OpenCVBoardDetector.detectAndCropChessboard(imageBytes);
-            if (enhancedImageBytes != null) {
-                finalImageBytes = enhancedImageBytes;
-                opencvUsed = true;
-              }
-            } catch (e) {
-              if (kDebugMode) {
-                print('OpenCV processing failed, using original: $e');
-              }
+      try {
+        final enhancedImageBytes = await OpenCVBoardDetector.detectAndCropChessboard(imageBytes);
+        if (enhancedImageBytes != null) {
+          finalImageBytes = enhancedImageBytes;
+          opencvUsed = true;
+          if (kDebugMode && (_debugExportBaseUrl != null && _debugExportBaseUrl!.isNotEmpty)) {
+            final ts = DateTime.now().millisecondsSinceEpoch;
+            unawaited(DebugExporter.exportBytes(finalImageBytes, name: 'opencv_crop_$ts.png'));
+          }
         }
+      } catch (e) {
+        if (kDebugMode) {
+          print('OpenCV processing failed, using original: $e');
+        }
+      }
 
       if (kDebugMode) {
-        print('OpenCV enhancement: ${opencvUsed ? "APPLIED" : "SKIPPED"} (needs improvement: $needsImprovement)');
+        print('OpenCV enhancement attempt: ${opencvUsed ? "APPLIED" : "SKIPPED (fallback to original)"}');
+        if (!opencvUsed && (_debugExportBaseUrl != null && _debugExportBaseUrl!.isNotEmpty)) {
+          final ts = DateTime.now().millisecondsSinceEpoch;
+          unawaited(DebugExporter.exportBytes(finalImageBytes, name: 'final_original_$ts.png'));
+        }
       }
 
       // Delegate to native implementation for optimal performance

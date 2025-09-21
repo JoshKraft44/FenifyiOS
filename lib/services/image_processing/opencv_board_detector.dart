@@ -1,6 +1,7 @@
 import 'dart:typed_data';
-import 'package:flutter/material.dart';
+import 'dart:math' as math;
 import 'package:opencv_dart/opencv_dart.dart' as cv;
+import 'debug_exporter.dart';
 
 /// Enhanced chess board detection using OpenCV computer vision library.
 class OpenCVBoardDetector {
@@ -19,226 +20,867 @@ class OpenCVBoardDetector {
       
       print('[OpenCV] Image size: ${srcMat.cols}x${srcMat.rows}');
       
-      // Use OpenCV's built-in chessboard corner detection - the industry standard
-      final cornersResult = await _detectChessboardCorners(srcMat);
-      if (cornersResult != null) {
-        print('[OpenCV] Chessboard corners detection successful');
-        return _matToBytes(cornersResult);
+      // Simple approach: find the largest square-ish region (chess boards are squares)
+      final (squareResult, detectedBounds) = await _detectLargestSquareWithBounds(srcMat);
+      if (squareResult != null && detectedBounds != null) {
+        print('[OpenCV] Square detection successful');
+
+        // Export original image with detected square outline
+        final originalWithOutline = _drawSquareOutlineOnOriginal(srcMat, detectedBounds);
+        final outlineBytes = _matToBytes(originalWithOutline);
+        DebugExporter.exportBytes(outlineBytes, name: 'opencv_original_with_outline_${DateTime.now().millisecondsSinceEpoch}.png');
+
+        final resized = cv.resize(squareResult, (512, 512));
+
+        // Create overlay with 8x8 grid lines on the final result
+        final overlayResult = _createSquareGridOverlay(resized);
+        final bytes = _matToBytes(overlayResult);
+        DebugExporter.exportBytes(bytes, name: 'opencv_square_with_grid_${DateTime.now().millisecondsSinceEpoch}.png');
+
+        // Also export the clean version without overlay
+        final cleanBytes = _matToBytes(resized);
+        DebugExporter.exportBytes(cleanBytes, name: 'opencv_square_clean_${DateTime.now().millisecondsSinceEpoch}.png');
+
+        return cleanBytes;
       }
-      
-      // Fallback: Smart center crop weighted toward the middle where chess apps put boards
-      print('[OpenCV] Using smart center crop for app screenshot');
-      return _smartCenterCropForApps(srcMat);
+
+      print('[OpenCV] No 8x8 board detected; returning null');
+      return null;
       
     } catch (e) {
       print('[OpenCV] Exception: $e');
       return null; // Return null to use original image
     }
   }
-  
-  /// Use OpenCV's built-in chessboard corner detection - industry standard approach
-  static Future<cv.Mat?> _detectChessboardCorners(cv.Mat srcMat) async {
+
+  /// Validates that a candidate crop shows exactly an 8x8 chessboard grid.
+  /// Requires exactly 9 line clusters in each direction (8 cells = 9 lines).
+  static bool _validateStrict8x8Grid(cv.Mat mat) {
     try {
-      print('[OpenCV] Attempting OpenCV findChessboardCorners detection');
-      
-      final gray = cv.cvtColor(srcMat, cv.COLOR_BGR2GRAY);
-      
-      // Standard chessboard is 8x8 squares, so 7x7 internal corners
-      // Try multiple common chessboard sizes
-      final chessboardSizes = [
-        (7, 7),   // Standard 8x8 board
-        (6, 6),   // 7x7 board
-        (8, 8),   // 9x9 board
-        (5, 5),   // 6x6 board
-        (9, 9),   // 10x10 board
-      ];
-      
-      for (final size in chessboardSizes) {
-        print('[OpenCV] Trying chessboard size: ${size.$1}x${size.$2}');
-        
-        // Use findChessboardCorners - the standard OpenCV function
-        final (found, corners) = cv.findChessboardCorners(gray, size);
-        
-        if (found && corners.isNotEmpty) {
-          print('[OpenCV] Found ${corners.length} corners for ${size.$1}x${size.$2} board');
-          
-          // Refine corners to sub-pixel accuracy
-          final refinedCorners = cv.cornerSubPix(
-            gray, 
-            corners, 
-            (11, 11),        // winSize
-            (-1, -1)         // zeroZone  
-          );
-          
-          // Calculate bounding box from corners
-          final boundingBox = _calculateBoundingBoxFromCorners(refinedCorners, srcMat);
-          if (boundingBox != null) {
-            // Extract and resize the chessboard region
-            final boardRegion = cv.getRectSubPix(srcMat, 
-              (boundingBox.width, boundingBox.height),
-              cv.Point2f(boundingBox.x + boundingBox.width / 2, 
-                        boundingBox.y + boundingBox.height / 2));
-            
-            final resized = cv.resize(boardRegion, (512, 512));
-            print('[OpenCV] Successfully extracted chessboard using corner detection');
-            return resized;
-          }
+      // Aspect ratio check - must be roughly square
+      final aspect = mat.cols / mat.rows;
+      final squareish = aspect > 0.85 && aspect < 1.15;
+      if (!squareish) {
+        print('[OpenCV] Validation: rejected due to non-square aspect (${aspect.toStringAsFixed(2)})');
+        return false;
+      }
+
+      // Use contrast-enhanced L channel (Lab) for robust line detection on colored boards
+      final lab = cv.cvtColor(mat, cv.COLOR_BGR2Lab);
+      final channels = cv.split(lab);
+      final l = channels[0];
+      final lEq = cv.equalizeHist(l);
+      final blurred = cv.gaussianBlur(lEq, (3, 3), 0);
+      final edges = cv.canny(blurred, 50, 150);
+
+      final lines = cv.HoughLinesP(edges, 1, cv.CV_PI / 180, 80, minLineLength: 60, maxLineGap: 10);
+      if (lines.rows == 0) {
+        print('[OpenCV] Validation: no Hough lines');
+        return false;
+      }
+
+      final horizontal = <int>[]; // y positions (midpoints)
+      final vertical = <int>[];   // x positions (midpoints)
+
+      for (int i = 0; i < lines.rows; i++) {
+        final row = lines.row(i);
+        final x1 = row.at<int>(0, 0);
+        final y1 = row.at<int>(0, 1);
+        final x2 = row.at<int>(0, 2);
+        final y2 = row.at<int>(0, 3);
+
+        final dx = (x2 - x1).toDouble();
+        final dy = (y2 - y1).toDouble();
+        final length = (dx.abs() + dy.abs());
+        if (length < 40) continue;
+
+        final angleDeg = (math.atan2(dy, dx) * 180.0 / 3.141592653589793).abs();
+        // Normalize angle to [0,90]
+        final angle = angleDeg > 90 ? 180 - angleDeg : angleDeg;
+
+        if (angle < 12) {
+          // horizontal-ish
+          horizontal.add(((y1 + y2) / 2).round());
+        } else if (angle > 78) {
+          // vertical-ish
+          vertical.add(((x1 + x2) / 2).round());
         }
       }
-      
-      print('[OpenCV] No chessboard corners found with standard detection');
-      return null;
-      
+
+      print('[OpenCV] Raw line positions: H:${horizontal.length} V:${vertical.length}');
+
+      // First pass: cluster with reasonable tolerance to group nearby lines
+      var hTolerance = (mat.rows * 0.02).round();
+      var vTolerance = (mat.cols * 0.02).round();
+
+      var hCenters = _clusterCenters(horizontal, tolerance: hTolerance);
+      var vCenters = _clusterCenters(vertical, tolerance: vTolerance);
+
+      print('[OpenCV] After clustering: H:${hCenters.length} V:${vCenters.length}');
+
+      // If we have too many lines, select the best subset of 7-9 evenly spaced lines
+      if (hCenters.length > 15) {
+        hCenters = _selectBestEvenlySpacedLines(hCenters, targetCount: 9);
+        print('[OpenCV] Selected best ${hCenters.length} horizontal lines from ${hCenters.length} clustered');
+      }
+      if (vCenters.length > 15) {
+        vCenters = _selectBestEvenlySpacedLines(vCenters, targetCount: 9);
+        print('[OpenCV] Selected best ${vCenters.length} vertical lines from ${vCenters.length} clustered');
+      }
+
+      // If we have exactly 7 lines, infer missing outer edge lines
+      hCenters = _inferMissingEdgeLines(hCenters, mat.rows);
+      vCenters = _inferMissingEdgeLines(vCenters, mat.cols);
+
+      // Evaluate spacing consistency for both dimensions
+      final hSpacingQuality = _evaluateSpacingConsistency(hCenters);
+      final vSpacingQuality = _evaluateSpacingConsistency(vCenters);
+
+      print('[OpenCV] Spacing quality - H: ${hSpacingQuality.toStringAsFixed(3)}, V: ${vSpacingQuality.toStringAsFixed(3)}');
+
+      // If one dimension has much better spacing, use it to constrain the other
+      if ((vSpacingQuality < hSpacingQuality * 0.7) && vSpacingQuality < 0.15) {
+        print('[OpenCV] Vertical spacing is much better, using it to constrain horizontal search');
+        final newHCenters = _findConstrainedLines(horizontal, vCenters, true, mat); // true = finding horizontal lines
+        final newHQuality = _evaluateSpacingConsistency(newHCenters);
+        if (newHQuality < hSpacingQuality) {
+          hCenters = newHCenters;
+          print('[OpenCV] Constrained horizontal search improved spacing: ${hSpacingQuality.toStringAsFixed(3)} → ${newHQuality.toStringAsFixed(3)}');
+        } else {
+          print('[OpenCV] Constrained search did not improve spacing, keeping original');
+        }
+      } else if ((hSpacingQuality < vSpacingQuality * 0.7) && hSpacingQuality < 0.15) {
+        print('[OpenCV] Horizontal spacing is much better, using it to constrain vertical search');
+        final newVCenters = _findConstrainedLines(vertical, hCenters, false, mat); // false = finding vertical lines
+        final newVQuality = _evaluateSpacingConsistency(newVCenters);
+        if (newVQuality < vSpacingQuality) {
+          vCenters = newVCenters;
+          print('[OpenCV] Constrained vertical search improved spacing: ${vSpacingQuality.toStringAsFixed(3)} → ${newVQuality.toStringAsFixed(3)}');
+        } else {
+          print('[OpenCV] Constrained search did not improve spacing, keeping original');
+        }
+      }
+
+      final hCount = hCenters.length;
+      final vCount = vCenters.length;
+
+      print('[OpenCV] Validation clusters H:$hCount V:$vCount (after edge inference)');
+
+      // Export overlay of detected grid lines for debugging
+      try {
+        print('[OpenCV] Drawing overlay: H centers: $hCenters, V centers: $vCenters');
+        final overlay = mat.clone();
+        // Draw horizontal centers in green
+        for (final y in hCenters) {
+          cv.line(overlay, cv.Point(0, y), cv.Point(overlay.cols, y), cv.Scalar(0, 255, 0, 255), thickness: 3);
+        }
+        // Draw vertical centers in blue
+        for (final x in vCenters) {
+          cv.line(overlay, cv.Point(x, 0), cv.Point(x, overlay.rows), cv.Scalar(255, 0, 0, 255), thickness: 3);
+        }
+        final overlayPng = _matToBytes(overlay);
+        DebugExporter.exportBytes(overlayPng, name: 'overlay_grid_${DateTime.now().millisecondsSinceEpoch}_H${hCount}_V$vCount.png');
+        print('[OpenCV] Overlay exported successfully');
+      } catch (e) {
+        print('[OpenCV] Overlay error: $e');
+      }
+
+      // Accept 7 lines (internal) or 9 lines (with edges) for 8x8 board
+      // We can also work with fewer lines in some cases
+      if ((hCount < 6 || hCount > 12) || (vCount < 6 || vCount > 12)) {
+        print('[OpenCV] Validation failed: line count out of range (H:$hCount V:$vCount, need 6-12 each)');
+        return false;
+      }
+
+      // For proper 8x8 detection, prefer 7 or 9 lines but allow some flexibility
+      if (hCount != 7 && hCount != 9 && vCount != 7 && vCount != 9) {
+        print('[OpenCV] Warning: unusual line count (H:$hCount V:$vCount), but proceeding');
+      }
+
+      // Check for roughly uniform spacing between adjacent lines
+      bool spacingOk(List<int> centers, int size) {
+        if (centers.length < 3) return false;
+        centers.sort();
+        final gaps = <double>[];
+        for (int i = 1; i < centers.length; i++) {
+          gaps.add((centers[i] - centers[i - 1]).toDouble());
+        }
+        final mean = gaps.reduce((a, b) => a + b) / gaps.length;
+        final varSum = gaps.fold(0.0, (s, g) => s + (g - mean) * (g - mean));
+        final std = math.sqrt(varSum / gaps.length);
+        final cvRatio = std / (mean == 0 ? 1 : mean);
+        // Chess boards need consistent spacing but allow some real-world variation
+        final ok = cvRatio < 0.30 && mean > size * 0.07; // CV must be < 30%, cell size at least 7%
+        if (!ok) {
+          print('[OpenCV] Validation failed: irregular spacing (cv=${cvRatio.toStringAsFixed(2)}, mean=${mean.toStringAsFixed(1)})');
+        }
+        // Also check margin symmetry
+        final firstGap = gaps.first;
+        final lastGap = gaps.last;
+        final marginRatio = (firstGap - lastGap).abs() / (mean == 0 ? 1 : mean);
+        if (marginRatio > 0.5) {
+          print('[OpenCV] Validation failed: asymmetric margins (ratio=${marginRatio.toStringAsFixed(2)})');
+          return false;
+        }
+        return ok;
+      }
+
+      final spacingValid = spacingOk(hCenters, mat.rows) && spacingOk(vCenters, mat.cols);
+      if (!spacingValid) return false;
+
+      return true;
     } catch (e) {
-      print('[OpenCV] Chessboard corners detection error: $e');
-      return null;
+      print('[OpenCV] Validation error: $e');
+      return false;
     }
   }
-  
-  /// Calculate bounding box from detected chessboard corners
-  static cv.Rect? _calculateBoundingBoxFromCorners(cv.VecPoint2f corners, cv.Mat srcMat) {
-    if (corners.isEmpty) return null;
-    
-    // Find min/max x and y coordinates
-    double minX = double.infinity;
-    double maxX = double.negativeInfinity;
-    double minY = double.infinity;
-    double maxY = double.negativeInfinity;
-    
-    for (int i = 0; i < corners.length; i++) {
-      final point = corners[i];
-      minX = minX < point.x ? minX : point.x;
-      maxX = maxX > point.x ? maxX : point.x;
-      minY = minY < point.y ? minY : point.y;
-      maxY = maxY > point.y ? maxY : point.y;
+
+
+  /// Simple 1D clustering by proximity (pixels). Returns cluster centers.
+  static List<int> _clusterCenters(List<int> coords, {required int tolerance}) {
+    if (coords.isEmpty) return <int>[];
+    coords.sort();
+    final centers = <int>[];
+    int start = coords.first;
+    int end = coords.first;
+    int clusterSize = 1;
+
+    for (int i = 1; i < coords.length; i++) {
+      if ((coords[i] - end).abs() <= tolerance) {
+        end = coords[i];
+        clusterSize++;
+      } else {
+        final center = ((start + end) / 2).round();
+        centers.add(center);
+        start = end = coords[i];
+        clusterSize = 1;
+      }
     }
-    
-    // Add some padding around the detected corners
-    final padding = ((maxX - minX + maxY - minY) / 2 * 0.1).round();
-    
-    final x = (minX - padding).round().clamp(0, srcMat.cols);
-    final y = (minY - padding).round().clamp(0, srcMat.rows);
-    final width = (maxX - minX + 2 * padding).round().clamp(0, srcMat.cols - x);
-    final height = (maxY - minY + 2 * padding).round().clamp(0, srcMat.rows - y);
-    
-    // Make it square using the larger dimension for better coverage
-    final size = width > height ? width : height;
-    final centerX = x + width / 2;
-    final centerY = y + height / 2;
-    
-    return cv.Rect(
-      (centerX - size / 2).round().clamp(0, srcMat.cols),
-      (centerY - size / 2).round().clamp(0, srcMat.rows),
-      size.clamp(100, srcMat.cols),
-      size.clamp(100, srcMat.rows)
-    );
+    final center = ((start + end) / 2).round();
+    centers.add(center);
+    print('[OpenCV] Clustered ${coords.length} coords into ${centers.length} centers (tolerance: $tolerance)');
+    return centers;
   }
-  
-  /// Detect chessboard by looking for grid patterns - best for app screenshots
-  static Future<cv.Mat?> _detectChessboardGrid(cv.Mat srcMat) async {
-    try {
-      print('[OpenCV] Attempting grid pattern detection');
-      
-      final gray = cv.cvtColor(srcMat, cv.COLOR_BGR2GRAY);
-      
-      // Look for the chessboard pattern in the center 80% of the image
-      final centerRegion = _extractCenterRegion(srcMat, 0.8);
-      final centerGray = cv.cvtColor(centerRegion, cv.COLOR_BGR2GRAY);
-      
-      // Detect horizontal and vertical lines that form a grid
-      final edges = cv.canny(centerGray, 50, 150);
-      final horizontalLines = _detectHorizontalLines(edges);
-      final verticalLines = _detectVerticalLines(edges);
-      
-      print('[OpenCV] Found ${horizontalLines.length} horizontal, ${verticalLines.length} vertical lines in center region');
-      
-      // A chessboard should have roughly 7-9 lines in each direction (8x8 grid)
-      if (horizontalLines.length >= 5 && horizontalLines.length <= 12 && 
-          verticalLines.length >= 5 && verticalLines.length <= 12) {
-        
-        // Find the bounding box of the grid lines
-        final gridBounds = _calculateGridBounds(horizontalLines, verticalLines, centerRegion);
-        if (gridBounds != null) {
-          // Adjust bounds back to original image coordinates
-          final adjustedBounds = cv.Rect(
-            (gridBounds.x + srcMat.cols * 0.1).round(),
-            (gridBounds.y + srcMat.rows * 0.1).round(),
-            gridBounds.width,
-            gridBounds.height
-          );
-          
-          // Extract and resize the grid region
-          final boardRegion = _extractSquareRegion(srcMat, adjustedBounds);
-          if (boardRegion != null) {
-            print('[OpenCV] Grid detection successful');
-            return cv.resize(boardRegion, (512, 512));
+
+  /// Select the best subset of evenly spaced lines for chess board detection
+  static List<int> _selectBestEvenlySpacedLines(List<int> lines, {required int targetCount}) {
+    if (lines.length <= targetCount) return lines;
+
+    lines.sort();
+    double bestScore = double.infinity;
+    List<int> bestSubset = [];
+
+    // Try different starting positions and find the most evenly spaced subset
+    for (int start = 0; start <= lines.length - targetCount; start++) {
+      for (int step = 1; step <= (lines.length - start) ~/ targetCount; step++) {
+        final subset = <int>[];
+
+        // Build subset with this step size
+        for (int i = 0; i < targetCount && start + i * step < lines.length; i++) {
+          subset.add(lines[start + i * step]);
+        }
+
+        if (subset.length == targetCount) {
+          // Calculate spacing variance (lower is better)
+          final spacings = <double>[];
+          for (int i = 1; i < subset.length; i++) {
+            spacings.add((subset[i] - subset[i-1]).toDouble());
+          }
+
+          if (spacings.isNotEmpty) {
+            final avgSpacing = spacings.reduce((a, b) => a + b) / spacings.length;
+            final variance = spacings.map((s) => (s - avgSpacing) * (s - avgSpacing)).reduce((a, b) => a + b) / spacings.length;
+
+            if (variance < bestScore) {
+              bestScore = variance;
+              bestSubset = List.from(subset);
+            }
           }
         }
       }
-      
-      return null;
+    }
+
+    if (bestSubset.isNotEmpty) {
+      print('[OpenCV] Best evenly spaced subset: spacings variance = ${bestScore.toStringAsFixed(2)}');
+      return bestSubset;
+    }
+
+    // Fallback: take evenly distributed lines across the range
+    final result = <int>[];
+    for (int i = 0; i < targetCount; i++) {
+      final index = (i * (lines.length - 1) / (targetCount - 1)).round();
+      result.add(lines[index]);
+    }
+    return result;
+  }
+
+  /// Evaluate spacing consistency (lower score = more consistent)
+  static double _evaluateSpacingConsistency(List<int> centers) {
+    if (centers.length < 3) return 1.0; // Not enough data
+
+    centers.sort();
+    final spacings = <double>[];
+    for (int i = 1; i < centers.length; i++) {
+      spacings.add((centers[i] - centers[i-1]).toDouble());
+    }
+
+    final mean = spacings.reduce((a, b) => a + b) / spacings.length;
+    final variance = spacings.map((s) => (s - mean) * (s - mean)).reduce((a, b) => a + b) / spacings.length;
+    final stdDev = math.sqrt(variance);
+
+    // Coefficient of variation (CV) - lower is better
+    final cv = stdDev / mean;
+    print('[OpenCV] Spacing analysis: mean=${mean.toStringAsFixed(1)}, stdDev=${stdDev.toStringAsFixed(1)}, CV=${cv.toStringAsFixed(3)}');
+    return cv;
+  }
+
+  /// Find constrained lines using the good dimension to define search area
+  static List<int> _findConstrainedLines(List<int> rawLines, List<int> goodDimension, bool findingHorizontal, cv.Mat mat) {
+    if (goodDimension.length < 7) return rawLines;
+
+    goodDimension.sort();
+
+    // Define the search region using the good dimension (with some padding)
+    final start = goodDimension.first;
+    final end = goodDimension.last;
+    final padding = ((end - start) * 0.1).round(); // 10% padding
+    final searchStart = (start - padding).clamp(0, findingHorizontal ? mat.rows : mat.cols);
+    final searchEnd = (end + padding).clamp(0, findingHorizontal ? mat.rows : mat.cols);
+
+    print('[OpenCV] Constraining search to range $searchStart-$searchEnd (from good dimension $start-$end)');
+
+    // Filter raw lines to only those within the search region
+    final constrainedLines = rawLines.where((line) => line >= searchStart && line <= searchEnd).toList();
+
+    print('[OpenCV] Filtered ${rawLines.length} raw lines to ${constrainedLines.length} within region');
+
+    if (constrainedLines.length < 5) {
+      print('[OpenCV] Too few constrained lines, falling back to original');
+      return rawLines;
+    }
+
+    // Cluster with tighter tolerance within the constrained region
+    final regionSize = searchEnd - searchStart;
+    final tightTolerance = (regionSize * 0.015).round(); // Stricter 1.5% tolerance
+
+    var clustered = _clusterCenters(constrainedLines, tolerance: tightTolerance);
+    print('[OpenCV] Constrained clustering: ${constrainedLines.length} → ${clustered.length} lines');
+
+    // Select the most evenly spaced subset
+    if (clustered.length > 9) {
+      clustered = _selectBestEvenlySpacedLines(clustered, targetCount: 9);
+    }
+
+    // Infer edges if needed
+    clustered = _inferMissingEdgeLines(clustered, findingHorizontal ? mat.rows : mat.cols);
+
+    print('[OpenCV] Final constrained result: ${clustered.length} lines');
+    return clustered;
+  }
+
+  /// Infer missing edge lines when we have exactly 7 internal lines for an 8x8 board
+  static List<int> _inferMissingEdgeLines(List<int> centers, int imageSize) {
+    if (centers.length == 9) {
+      // Already have all 9 lines (7 internal + 2 edges)
+      return centers;
+    }
+
+    if (centers.length == 7) {
+      // Add missing outer edge lines by extrapolating with equal spacing
+      final List<int> result = List.from(centers);
+      result.sort();
+
+      // Calculate average spacing between existing lines
+      final spacings = <int>[];
+      for (int i = 1; i < result.length; i++) {
+        spacings.add(result[i] - result[i-1]);
+      }
+      final avgSpacing = spacings.reduce((a, b) => a + b) / spacings.length;
+
+      // Add edge lines with same spacing
+      final firstEdge = (result.first - avgSpacing).round().clamp(0, imageSize);
+      final lastEdge = (result.last + avgSpacing).round().clamp(0, imageSize);
+
+      result.insert(0, firstEdge);
+      result.add(lastEdge);
+
+      print('[OpenCV] Inferred edge lines: added $firstEdge and $lastEdge (spacing: ${avgSpacing.toStringAsFixed(1)})');
+      return result;
+    }
+
+    // Return as-is for other counts
+    return centers;
+  }
+  
+  
+
+  /// Detect chessboard by finding the largest square region in the image
+  static Future<cv.Mat?> _detectLargestSquare(cv.Mat srcMat) async {
+    final (result, _) = await _detectLargestSquareWithBounds(srcMat);
+    return result;
+  }
+
+  /// Detect chessboard and return both the cropped result and the bounds
+  static Future<(cv.Mat?, cv.Rect?)> _detectLargestSquareWithBounds(cv.Mat srcMat) async {
+    try {
+      print('[OpenCV] Attempting largest square detection');
+
+      // Simple grayscale conversion - don't over-process and destroy the lines
+      final gray = cv.cvtColor(srcMat, cv.COLOR_BGR2GRAY);
+
+      // Basic edge detection with standard parameters
+      final edges = cv.canny(gray, 50, 150);
+
+      // 2. Find all contours
+      final (contours, hierarchy) = cv.findContours(edges, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+      print('[OpenCV] Found ${contours.length} contours');
+
+      if (contours.isEmpty) {
+        print('[OpenCV] No contours found');
+        return (null, null);
+      }
+
+      // 3. Find rectangular contours and score them
+      final candidates = <({cv.Rect rect, double score})>[];
+
+      for (int i = 0; i < contours.length; i++) {
+        final contour = contours[i];
+        // Approximate contour to polygon
+        final epsilon = cv.arcLength(contour, true) * 0.02;
+        final approx = cv.approxPolyDP(contour, epsilon, true);
+
+        // Look for roughly rectangular shapes (4-6 vertices work due to noise)
+        if (approx.length >= 4 && approx.length <= 6) {
+          final rect = cv.boundingRect(contour);
+
+          // 4. Filter for square-ish shapes (aspect ratio close to 1.0)
+          final aspectRatio = rect.width / rect.height.toDouble();
+          if (aspectRatio >= 0.7 && aspectRatio <= 1.4) {
+
+            // 5. Score by size, position, and squareness
+            final area = rect.width * rect.height;
+            final imageArea = srcMat.cols * srcMat.rows;
+            final sizeScore = area / imageArea.toDouble(); // Bigger is better
+
+            // Prefer centered squares
+            final centerX = rect.x + rect.width / 2;
+            final centerY = rect.y + rect.height / 2;
+            final imageCenterX = srcMat.cols / 2;
+            final imageCenterY = srcMat.rows / 2;
+            final centerDistance = math.sqrt(
+              math.pow(centerX - imageCenterX, 2) + math.pow(centerY - imageCenterY, 2)
+            );
+            final maxDistance = math.sqrt(
+              math.pow(srcMat.cols / 2, 2) + math.pow(srcMat.rows / 2, 2)
+            );
+            final centerScore = 1.0 - (centerDistance / maxDistance);
+
+            // Prefer squares over rectangles
+            final squareScore = 1.0 - (aspectRatio - 1.0).abs();
+
+            // Combined score: size (60%) + position (20%) + squareness (20%)
+            final totalScore = sizeScore * 0.6 + centerScore * 0.2 + squareScore * 0.2;
+
+            // Only consider reasonably sized squares (at least 5% of image)
+            if (sizeScore > 0.05) {
+              // Validate that this square actually looks like a chess board
+              final chessScore = _validateChessBoardPattern(srcMat, rect);
+              final finalScore = totalScore * 0.7 + chessScore * 0.3; // Blend geometric and chess scores
+
+              candidates.add((rect: rect, score: finalScore));
+              print('[OpenCV] Square candidate: ${rect.width}x${rect.height} at (${rect.x},${rect.y}) size=${(sizeScore*100).toStringAsFixed(1)}% chess=${chessScore.toStringAsFixed(2)} final=${finalScore.toStringAsFixed(3)}');
+            }
+          }
+        }
+      }
+
+      if (candidates.isEmpty) {
+        print('[OpenCV] No suitable square candidates found, trying with relaxed criteria');
+
+        // Try again with more relaxed criteria for difficult cases
+        for (int i = 0; i < contours.length; i++) {
+          final contour = contours[i];
+          final epsilon = cv.arcLength(contour, true) * 0.02;
+          final approx = cv.approxPolyDP(contour, epsilon, true);
+
+          if (approx.length >= 4 && approx.length <= 8) { // More flexible vertex count
+            final rect = cv.boundingRect(contour);
+            final aspectRatio = rect.width / rect.height.toDouble();
+
+            // More flexible aspect ratio and smaller minimum size
+            if (aspectRatio >= 0.5 && aspectRatio <= 2.0) {
+              final area = rect.width * rect.height;
+              final imageArea = srcMat.cols * srcMat.rows;
+              final sizeScore = area / imageArea.toDouble();
+
+              // Much smaller minimum (2% of image)
+              if (sizeScore > 0.02) {
+                final chessScore = _validateChessBoardPattern(srcMat, rect);
+
+                // Only add if it has some chess-like properties
+                if (chessScore > 0.1) {
+                  candidates.add((rect: rect, score: sizeScore * 0.5 + chessScore * 0.5));
+                  print('[OpenCV] Relaxed candidate: ${rect.width}x${rect.height} at (${rect.x},${rect.y}) size=${(sizeScore*100).toStringAsFixed(1)}% chess=${chessScore.toStringAsFixed(2)}');
+                }
+              }
+            }
+          }
+        }
+
+        if (candidates.isEmpty) {
+          print('[OpenCV] Still no candidates found even with relaxed criteria');
+          return (null, null);
+        }
+      }
+
+      // Pick the highest scoring square
+      candidates.sort((a, b) => b.score.compareTo(a.score));
+      final bestSquare = candidates.first;
+
+      print('[OpenCV] Best square: ${bestSquare.rect.width}x${bestSquare.rect.height} at (${bestSquare.rect.x},${bestSquare.rect.y}) score=${bestSquare.score.toStringAsFixed(3)}');
+
+      // Export bounds overlay for debugging
+      _exportBoundsOverlay('bounds_square', srcMat, bestSquare.rect);
+
+      // Extract the square region
+      final croppedBoard = _extractSquareRegion(srcMat, bestSquare.rect);
+      if (croppedBoard != null) {
+        print('[OpenCV] Square extraction successful');
+        return (croppedBoard, bestSquare.rect);
+      }
+
+      return (null, null);
     } catch (e) {
       print('[OpenCV] Grid detection error: $e');
-      return null;
+      return (null, null);
     }
   }
-  
-  /// Extract center region of image for focused analysis
-  static cv.Mat _extractCenterRegion(cv.Mat srcMat, double percentage) {
-    final centerWidth = (srcMat.cols * percentage).round();
-    final centerHeight = (srcMat.rows * percentage).round();
-    final startX = ((srcMat.cols - centerWidth) / 2).round();
-    final startY = ((srcMat.rows - centerHeight) / 2).round();
-    
-    return cv.getRectSubPix(srcMat, (centerWidth, centerHeight), 
-                           cv.Point2f(startX + centerWidth / 2, startY + centerHeight / 2));
+
+  /// Validate if a square region contains a chess board pattern
+  static double _validateChessBoardPattern(cv.Mat srcMat, cv.Rect rect) {
+    try {
+      // Extract the region
+      final roi = srcMat.region(rect);
+      final gray = cv.cvtColor(roi, cv.COLOR_BGR2GRAY);
+
+      // Look for grid lines within this region
+      final edges = cv.canny(gray, 30, 100);
+
+      // Detect horizontal and vertical lines
+      final lines = cv.HoughLinesP(edges, 1, cv.CV_PI / 180, 30, minLineLength: rect.width * 0.2, maxLineGap: 10);
+
+      var horizontalLines = 0;
+      var verticalLines = 0;
+
+      for (int i = 0; i < lines.rows; i++) {
+        final line = lines.row(i);
+        final x1 = line.at<int>(0, 0);
+        final y1 = line.at<int>(0, 1);
+        final x2 = line.at<int>(0, 2);
+        final y2 = line.at<int>(0, 3);
+
+        final dx = (x1 - x2).abs();
+        final dy = (y1 - y2).abs();
+
+        // Classify as horizontal or vertical
+        if (dx > dy * 2) {
+          horizontalLines++;
+        } else if (dy > dx * 2) {
+          verticalLines++;
+        }
+      }
+
+      // Chess boards should have multiple lines in both directions
+      final minLines = 3; // At least 3 lines each way (flexible for various crops)
+      final maxLines = 12; // But not too many (noisy detection)
+
+      final hGood = horizontalLines >= minLines && horizontalLines <= maxLines;
+      final vGood = verticalLines >= minLines && verticalLines <= maxLines;
+
+      if (hGood && vGood) {
+        // Additional check: look for alternating light/dark pattern
+        final checkered = _hasCheckeredPattern(gray);
+        final lineBalance = 1.0 - ((horizontalLines - verticalLines).abs() / math.max(horizontalLines, verticalLines));
+
+        return (checkered * 0.6 + lineBalance * 0.4).clamp(0.0, 1.0);
+      }
+
+      return 0.0;
+    } catch (e) {
+      print('[OpenCV] Chess validation error: $e');
+      return 0.0;
+    }
   }
-  
-  /// Detect horizontal lines in edge image
+
+  /// Check for alternating light/dark checkered pattern
+  static double _hasCheckeredPattern(cv.Mat gray) {
+    // Sample a grid of points and check for alternating brightness
+    final rows = 8;
+    final cols = 8;
+    final cellW = gray.cols / cols;
+    final cellH = gray.rows / rows;
+
+    var alternatingCount = 0;
+    var totalChecks = 0;
+
+    for (int r = 0; r < rows - 1; r++) {
+      for (int c = 0; c < cols - 1; c++) {
+        final y = (r * cellH + cellH / 2).round();
+        final x = (c * cellW + cellW / 2).round();
+
+        if (x < gray.cols && y < gray.rows) {
+          final current = gray.at<int>(y, x);
+
+          // Check right neighbor
+          final rightX = ((c + 1) * cellW + cellW / 2).round();
+          if (rightX < gray.cols) {
+            final right = gray.at<int>(y, rightX);
+            if ((current - right).abs() > 30) alternatingCount++; // Significant brightness difference
+            totalChecks++;
+          }
+
+          // Check bottom neighbor
+          final bottomY = ((r + 1) * cellH + cellH / 2).round();
+          if (bottomY < gray.rows) {
+            final bottom = gray.at<int>(bottomY, x);
+            if ((current - bottom).abs() > 30) alternatingCount++;
+            totalChecks++;
+          }
+        }
+      }
+    }
+
+    return totalChecks > 0 ? alternatingCount / totalChecks : 0.0;
+  }
+
+
+  /// Detect horizontal lines in edge image - optimized for chess grids
   static List<cv.Vec4i> _detectHorizontalLines(cv.Mat edges) {
-    final lines = cv.HoughLinesP(edges, 1, cv.CV_PI / 180, 50, minLineLength: 50, maxLineGap: 10);
+    // Much higher threshold and longer minimum length for chess board grids
+    final lines = cv.HoughLinesP(edges, 1, cv.CV_PI / 180, 150, minLineLength: 300, maxLineGap: 20);
     final horizontalLines = <cv.Vec4i>[];
-    
+
     for (int i = 0; i < lines.rows; i++) {
       final line = lines.row(i);
       final x1 = line.at<int>(0, 0);
       final y1 = line.at<int>(0, 1);
       final x2 = line.at<int>(0, 2);
       final y2 = line.at<int>(0, 3);
-      
+
       final dx = (x1 - x2).abs();
       final dy = (y1 - y2).abs();
-      
-      // More horizontal than vertical
-      if (dx > dy * 2) {
+      final length = math.sqrt(dx * dx + dy * dy);
+
+      // Must be strongly horizontal, long, and span a significant portion of image width
+      if (dx > dy * 4 && length > 400 && dx > edges.cols * 0.4) {
         horizontalLines.add(cv.Vec4i(x1, y1, x2, y2));
       }
     }
-    
+
+    print('[OpenCV] Filtered to ${horizontalLines.length} strong horizontal lines');
     return horizontalLines;
   }
-  
-  /// Detect vertical lines in edge image
+
+  /// Detect vertical lines in edge image - optimized for chess grids
   static List<cv.Vec4i> _detectVerticalLines(cv.Mat edges) {
-    final lines = cv.HoughLinesP(edges, 1, cv.CV_PI / 180, 50, minLineLength: 50, maxLineGap: 10);
+    // Much higher threshold and longer minimum length for chess board grids
+    final lines = cv.HoughLinesP(edges, 1, cv.CV_PI / 180, 150, minLineLength: 300, maxLineGap: 20);
     final verticalLines = <cv.Vec4i>[];
-    
+
     for (int i = 0; i < lines.rows; i++) {
       final line = lines.row(i);
       final x1 = line.at<int>(0, 0);
       final y1 = line.at<int>(0, 1);
       final x2 = line.at<int>(0, 2);
       final y2 = line.at<int>(0, 3);
-      
+
       final dx = (x1 - x2).abs();
       final dy = (y1 - y2).abs();
-      
-      // More vertical than horizontal
-      if (dy > dx * 2) {
+      final length = math.sqrt(dx * dx + dy * dy);
+
+      // Must be strongly vertical, long, and span a significant portion of image height
+      if (dy > dx * 4 && length > 400 && dy > edges.rows * 0.15) {
         verticalLines.add(cv.Vec4i(x1, y1, x2, y2));
       }
     }
-    
+
+    print('[OpenCV] Filtered to ${verticalLines.length} strong vertical lines');
+    return verticalLines;
+  }
+
+
+  /// Find the best subset of exactly 7 evenly-spaced lines from a larger set
+  static List<cv.Vec4i> _findBestLineSubset(List<cv.Vec4i> lines, bool isHorizontal) {
+    if (lines.length <= 7) return lines;
+
+    // Extract positions and sort them
+    final positions = <int>[];
+    for (final line in lines) {
+      if (isHorizontal) {
+        positions.add(((line.val2 + line.val4) / 2).round());
+      } else {
+        positions.add(((line.val1 + line.val3) / 2).round());
+      }
+    }
+
+    // Sort positions and corresponding lines together
+    final indexedLines = List.generate(lines.length, (i) => (positions[i], lines[i]));
+    indexedLines.sort((a, b) => a.$1.compareTo(b.$1));
+
+    final sortedPositions = indexedLines.map((e) => e.$1).toList();
+    final sortedLines = indexedLines.map((e) => e.$2).toList();
+
+    // Find the subset of 7 lines with the most uniform spacing
+    double bestScore = double.infinity;
+    List<cv.Vec4i> bestLines = [];
+
+    // Try all possible contiguous subsets of 7 lines
+    for (int start = 0; start <= lines.length - 7; start++) {
+      final subset = sortedLines.sublist(start, start + 7);
+      final subsetPositions = sortedPositions.sublist(start, start + 7);
+
+      // Calculate spacing uniformity score (lower is better)
+      final gaps = <int>[];
+      for (int i = 1; i < subsetPositions.length; i++) {
+        gaps.add(subsetPositions[i] - subsetPositions[i - 1]);
+      }
+
+      final mean = gaps.reduce((a, b) => a + b) / gaps.length;
+      final variance = gaps.fold(0.0, (sum, gap) => sum + (gap - mean) * (gap - mean)) / gaps.length;
+
+      if (variance < bestScore) {
+        bestScore = variance;
+        bestLines = subset;
+      }
+    }
+
+    print('[OpenCV] Best line subset variance: ${bestScore.toStringAsFixed(1)}');
+    return bestLines;
+  }
+
+  /// Find the rectangular region where both horizontal and vertical lines intersect
+  static cv.Rect? _findBoardRegion(List<cv.Vec4i> hLines, List<cv.Vec4i> vLines, cv.Mat srcMat) {
+    // Get bounds of horizontal lines
+    final hPositions = hLines.map((line) => ((line.val2 + line.val4) / 2).round()).toList();
+    hPositions.sort();
+
+    // Get bounds of vertical lines
+    final vPositions = vLines.map((line) => ((line.val1 + line.val3) / 2).round()).toList();
+    vPositions.sort();
+
+    if (hPositions.length < 7 || vPositions.length < 7) return null;
+
+    // Use the middle 7 positions to avoid outliers
+    final midHStart = (hPositions.length - 7) ~/ 2;
+    final midVStart = (vPositions.length - 7) ~/ 2;
+
+    final coreH = hPositions.sublist(midHStart, midHStart + 7);
+    final coreV = vPositions.sublist(midVStart, midVStart + 7);
+
+    // Calculate average spacing
+    final hGap = (coreH.last - coreH.first) / 6.0; // 6 gaps between 7 lines
+    final vGap = (coreV.last - coreV.first) / 6.0;
+
+    // Board should be square, so use consistent spacing
+    final avgGap = (hGap + vGap) / 2;
+
+    // Extend by 1 gap on each side to include board edges
+    final left = (coreV.first - avgGap).round().clamp(0, srcMat.cols);
+    final right = (coreV.last + avgGap).round().clamp(0, srcMat.cols);
+    final top = (coreH.first - avgGap).round().clamp(0, srcMat.rows);
+    final bottom = (coreH.last + avgGap).round().clamp(0, srcMat.rows);
+
+    return cv.Rect(left, top, right - left, bottom - top);
+  }
+
+  /// Make a region perfectly square using the smaller dimension
+  static cv.Rect _makeSquareRegion(cv.Rect region, cv.Mat srcMat) {
+    final size = region.width < region.height ? region.width : region.height;
+
+    // Center the square within the original region
+    final centerX = region.x + region.width / 2;
+    final centerY = region.y + region.height / 2;
+
+    final left = (centerX - size / 2).round().clamp(0, srcMat.cols - size);
+    final top = (centerY - size / 2).round().clamp(0, srcMat.rows - size);
+
+    return cv.Rect(left, top, size, size);
+  }
+
+  /// Check if line counts are reasonable for a chessboard
+
+  /// Tier 1: High quality detection (strict) - for clear screenshots
+  static (List<cv.Vec4i>, List<cv.Vec4i>) _detectLinesTier1(cv.Mat edges) {
+    return (_detectHorizontalLines(edges), _detectVerticalLines(edges));
+  }
+
+  /// Tier 2: Medium quality (relaxed thresholds)
+  static (List<cv.Vec4i>, List<cv.Vec4i>) _detectLinesTier2(cv.Mat edges) {
+    final hLines = _detectHorizontalLinesWithParams(edges, threshold: 100, minLength: 200.0, widthRatio: 0.3);
+    final vLines = _detectVerticalLinesWithParams(edges, threshold: 100, minLength: 200.0, heightRatio: 0.12);
+    return (hLines, vLines);
+  }
+
+  /// Tier 3: Fallback (loose thresholds) - for difficult images
+  static (List<cv.Vec4i>, List<cv.Vec4i>) _detectLinesTier3(cv.Mat edges) {
+    final hLines = _detectHorizontalLinesWithParams(edges, threshold: 80, minLength: 150.0, widthRatio: 0.25);
+    final vLines = _detectVerticalLinesWithParams(edges, threshold: 80, minLength: 150.0, heightRatio: 0.1);
+    return (hLines, vLines);
+  }
+
+  /// Parameterized horizontal line detection
+  static List<cv.Vec4i> _detectHorizontalLinesWithParams(cv.Mat edges, {
+    required int threshold,
+    required double minLength,
+    required double widthRatio,
+  }) {
+    final lines = cv.HoughLinesP(edges, 1, cv.CV_PI / 180, threshold, minLineLength: minLength, maxLineGap: 20);
+    final horizontalLines = <cv.Vec4i>[];
+
+    for (int i = 0; i < lines.rows; i++) {
+      final line = lines.row(i);
+      final x1 = line.at<int>(0, 0);
+      final y1 = line.at<int>(0, 1);
+      final x2 = line.at<int>(0, 2);
+      final y2 = line.at<int>(0, 3);
+
+      final dx = (x1 - x2).abs();
+      final dy = (y1 - y2).abs();
+      final length = math.sqrt(dx * dx + dy * dy);
+
+      if (dx > dy * 3 && length > minLength * 0.75 && dx > edges.cols * widthRatio) {
+        horizontalLines.add(cv.Vec4i(x1, y1, x2, y2));
+      }
+    }
+
+    return horizontalLines;
+  }
+
+  /// Parameterized vertical line detection
+  static List<cv.Vec4i> _detectVerticalLinesWithParams(cv.Mat edges, {
+    required int threshold,
+    required double minLength,
+    required double heightRatio,
+  }) {
+    final lines = cv.HoughLinesP(edges, 1, cv.CV_PI / 180, threshold, minLineLength: minLength, maxLineGap: 20);
+    final verticalLines = <cv.Vec4i>[];
+
+    for (int i = 0; i < lines.rows; i++) {
+      final line = lines.row(i);
+      final x1 = line.at<int>(0, 0);
+      final y1 = line.at<int>(0, 1);
+      final x2 = line.at<int>(0, 2);
+      final y2 = line.at<int>(0, 3);
+
+      final dx = (x1 - x2).abs();
+      final dy = (y1 - y2).abs();
+      final length = math.sqrt(dx * dx + dy * dy);
+
+      if (dy > dx * 3 && length > minLength * 0.75 && dy > edges.rows * heightRatio) {
+        verticalLines.add(cv.Vec4i(x1, y1, x2, y2));
+      }
+    }
+
     return verticalLines;
   }
   
@@ -260,286 +902,160 @@ class OpenCVBoardDetector {
     final maxY = yPositions.last;
     final minX = xPositions.first;
     final maxX = xPositions.last;
-    
-    final width = maxX - minX;
-    final height = maxY - minY;
-    
-    // Make it square using the smaller dimension
-    final size = width < height ? width : height;
-    final centerX = minX + width / 2;
-    final centerY = minY + height / 2;
-    
-    return cv.Rect(
-      (centerX - size / 2).round().clamp(0, regionMat.cols),
-      (centerY - size / 2).round().clamp(0, regionMat.rows),
-      size.clamp(100, regionMat.cols),
-      size.clamp(100, regionMat.rows)
-    );
+
+    // Use outermost detected grid lines as exact board boundaries - no extension needed
+    int left = minX.clamp(0, regionMat.cols);
+    int right = maxX.clamp(0, regionMat.cols);
+    int top = minY.clamp(0, regionMat.rows);
+    int bottom = maxY.clamp(0, regionMat.rows);
+
+    int width = right - left;
+    int height = bottom - top;
+
+    // Make square by expanding both sides equally to preserve board centering
+    if (width != height) {
+      final size = width > height ? width : height;
+      if (width < height) {
+        final delta = size - width;
+        final addEach = delta ~/ 2;
+        left = (left - addEach).clamp(0, regionMat.cols);
+        right = (right + (delta - addEach)).clamp(0, regionMat.cols);
+      } else {
+        final delta = size - height;
+        final addEach = delta ~/ 2;
+        top = (top - addEach).clamp(0, regionMat.rows);
+        bottom = (bottom + (delta - addEach)).clamp(0, regionMat.rows);
+      }
+      width = right - left;
+      height = bottom - top;
+    }
+
+    // Enforce minimum size
+    final size = width; // == height after square adjustment
+    if (size < 100) return null;
+    return cv.Rect(left, top, width, height);
   }
   
   /// Extract square region from bounds
   static cv.Mat? _extractSquareRegion(cv.Mat srcMat, cv.Rect bounds) {
     try {
-      return cv.getRectSubPix(srcMat, (bounds.width, bounds.height),
-                             cv.Point2f(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2));
+      // Use direct ROI extraction to avoid perspective distortion
+      final roi = srcMat.region(bounds);
+      return roi;
     } catch (e) {
       print('[OpenCV] Error extracting square region: $e');
       return null;
     }
   }
-  
-  /// Smart center crop optimized for chess app screenshots
-  static Uint8List? _smartCenterCropForApps(cv.Mat srcMat) {
+
+  static void _exportBoundsOverlay(String tag, cv.Mat srcMat, cv.Rect bounds) {
     try {
-      final width = srcMat.cols;
-      final height = srcMat.rows;
-      
-      print('[OpenCV] Smart app crop for ${width}x$height image');
-      
-      // For vertical screenshots, assume board is in the center-upper area
-      // Chess apps typically put board in upper 60% of screen, centered horizontally
-      final cropWidth = (width * 0.9).round(); // 90% of width
-      final cropHeight = cropWidth; // Make it square
-      
-      // Position slightly above center for typical app layouts
-      final centerX = width / 2;
-      final centerY = height * 0.45; // 45% from top (slightly above center)
-      
-      final croppedBoard = cv.getRectSubPix(srcMat, (cropWidth, cropHeight), 
-                                           cv.Point2f(centerX, centerY));
-      
-      final resized = cv.resize(croppedBoard, (512, 512));
-      
-      print('[OpenCV] Smart app crop applied: ${cropWidth}x$cropHeight at center ($centerX, $centerY)');
-      return _matToBytes(resized);
-      
-    } catch (e) {
-      print('[OpenCV] Smart app crop error: $e');
-      return null;
-    }
+      final overlay = srcMat.clone();
+      final p1 = cv.Point(bounds.x, bounds.y);
+      final p2 = cv.Point(bounds.x + bounds.width, bounds.y);
+      final p3 = cv.Point(bounds.x + bounds.width, bounds.y + bounds.height);
+      final p4 = cv.Point(bounds.x, bounds.y + bounds.height);
+      final green = cv.Scalar(0, 255, 0, 255);
+      cv.line(overlay, p1, p2, green);
+      cv.line(overlay, p2, p3, green);
+      cv.line(overlay, p3, p4, green);
+      cv.line(overlay, p4, p1, green);
+      final bytes = _matToBytes(overlay);
+      DebugExporter.exportBytes(bytes, name: '${tag}_${DateTime.now().millisecondsSinceEpoch}.png');
+    } catch (_) {}
   }
   
-  /// Contour-based detection using shape analysis - most reliable for chess boards
-  static Future<cv.Mat?> _detectChessboardByContours(cv.Mat srcMat) async {
-    try {
-      print('[OpenCV] Attempting contour-based detection');
-      
-      // Convert to grayscale
-      final gray = cv.cvtColor(srcMat, cv.COLOR_BGR2GRAY);
-      
-      // Apply Gaussian blur to reduce noise
-      final blurred = cv.gaussianBlur(gray, (5, 5), 0);
-      
-      // Apply adaptive threshold to get binary image
-      final binary = cv.adaptiveThreshold(blurred, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 15, 10);
-      
-      // Find contours
-      final contours = cv.findContours(binary, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-      
-      // Find the largest rectangular contour
-      double maxArea = 0;
-      cv.VecPoint? largestContour;
-      
-      for (final contour in contours.$1) {
-        final area = cv.contourArea(contour);
-        if (area > maxArea && area > 10000) { // Minimum area threshold
-          // Approximate contour to polygon
-          final approx = cv.approxPolyDP(contour, cv.arcLength(contour, true) * 0.02, true);
-          
-          // Check if it's roughly rectangular (4-8 corners)
-          if (approx.length >= 4 && approx.length <= 8) {
-            maxArea = area;
-            largestContour = approx;
-          }
+  /// Draw square outline on the original image to show detection bounds
+  static cv.Mat _drawSquareOutlineOnOriginal(cv.Mat originalMat, cv.Rect bounds) {
+    final overlay = originalMat.clone();
+
+    // Draw thick lime green outline around the detected square
+    final outlineColor = cv.Scalar(0, 255, 0, 255); // Lime green in BGR
+    final thickness = 8;
+
+    // Draw the rectangle outline
+    final p1 = cv.Point(bounds.x, bounds.y);
+    final p2 = cv.Point(bounds.x + bounds.width, bounds.y);
+    final p3 = cv.Point(bounds.x + bounds.width, bounds.y + bounds.height);
+    final p4 = cv.Point(bounds.x, bounds.y + bounds.height);
+
+    cv.line(overlay, p1, p2, outlineColor, thickness: thickness);
+    cv.line(overlay, p2, p3, outlineColor, thickness: thickness);
+    cv.line(overlay, p3, p4, outlineColor, thickness: thickness);
+    cv.line(overlay, p4, p1, outlineColor, thickness: thickness);
+
+    // Add corner markers for extra visibility
+    final cornerSize = 20;
+    final cornerColor = cv.Scalar(255, 0, 0, 255); // Blue corners in BGR
+    final cornerThickness = 6;
+
+    // Top-left corner
+    cv.line(overlay, cv.Point(bounds.x, bounds.y), cv.Point(bounds.x + cornerSize, bounds.y), cornerColor, thickness: cornerThickness);
+    cv.line(overlay, cv.Point(bounds.x, bounds.y), cv.Point(bounds.x, bounds.y + cornerSize), cornerColor, thickness: cornerThickness);
+
+    // Top-right corner
+    cv.line(overlay, cv.Point(bounds.x + bounds.width, bounds.y), cv.Point(bounds.x + bounds.width - cornerSize, bounds.y), cornerColor, thickness: cornerThickness);
+    cv.line(overlay, cv.Point(bounds.x + bounds.width, bounds.y), cv.Point(bounds.x + bounds.width, bounds.y + cornerSize), cornerColor, thickness: cornerThickness);
+
+    // Bottom-right corner
+    cv.line(overlay, cv.Point(bounds.x + bounds.width, bounds.y + bounds.height), cv.Point(bounds.x + bounds.width - cornerSize, bounds.y + bounds.height), cornerColor, thickness: cornerThickness);
+    cv.line(overlay, cv.Point(bounds.x + bounds.width, bounds.y + bounds.height), cv.Point(bounds.x + bounds.width, bounds.y + bounds.height - cornerSize), cornerColor, thickness: cornerThickness);
+
+    // Bottom-left corner
+    cv.line(overlay, cv.Point(bounds.x, bounds.y + bounds.height), cv.Point(bounds.x + cornerSize, bounds.y + bounds.height), cornerColor, thickness: cornerThickness);
+    cv.line(overlay, cv.Point(bounds.x, bounds.y + bounds.height), cv.Point(bounds.x, bounds.y + bounds.height - cornerSize), cornerColor, thickness: cornerThickness);
+
+    return overlay;
+  }
+
+  /// Create an overlay showing the 8x8 grid on the detected square
+  static cv.Mat _createSquareGridOverlay(cv.Mat squareMat) {
+    final overlay = squareMat.clone();
+    final size = squareMat.cols; // Should be square (512x512)
+    final cellSize = size / 8.0;
+
+    // Draw grid lines in bright green for visibility
+    final lineColor = cv.Scalar(0, 255, 0, 255); // Green in BGR
+    final thickness = 2;
+
+    // Draw horizontal lines (8 internal lines + 2 edges = 10 total, but we draw 9 to show 8x8 grid)
+    for (int i = 0; i <= 8; i++) {
+      final y = (i * cellSize).round();
+      cv.line(overlay, cv.Point(0, y), cv.Point(size, y), lineColor, thickness: thickness);
+    }
+
+    // Draw vertical lines (same logic)
+    for (int i = 0; i <= 8; i++) {
+      final x = (i * cellSize).round();
+      cv.line(overlay, cv.Point(x, 0), cv.Point(x, size), lineColor, thickness: thickness);
+    }
+
+    // Add square labels for debugging (A1, A2, etc.)
+    for (int row = 0; row < 8; row++) {
+      for (int col = 0; col < 8; col++) {
+        final x = (col * cellSize + cellSize / 2).round();
+        final y = (row * cellSize + cellSize / 2).round();
+
+        // Chess notation: A-H for files (columns), 1-8 for ranks (rows, but inverted)
+        final file = String.fromCharCode('A'.codeUnitAt(0) + col);
+        final rank = (8 - row).toString();
+        final label = '$file$rank';
+
+        // Draw text in small font (if OpenCV Dart supports it)
+        try {
+          cv.putText(overlay, label, cv.Point(x - 8, y + 4), cv.FONT_HERSHEY_SIMPLEX, 0.4, cv.Scalar(255, 255, 0, 255), thickness: 1);
+        } catch (e) {
+          // Text rendering may not be available in all OpenCV builds
+          print('[OpenCV] Text rendering not available: $e');
         }
       }
-      
-      if (largestContour == null) {
-        return null;
-      }
-      
-      // Get bounding rect of the largest contour
-      final boundingRect = cv.boundingRect(largestContour);
-      
-      // Ensure minimum size and roughly square aspect ratio
-      final aspectRatio = boundingRect.width / boundingRect.height;
-      if (boundingRect.width < 200 || boundingRect.height < 200 || 
-          aspectRatio < 0.7 || aspectRatio > 1.3) {
-        return null;
-      }
-      
-      // Make the crop square by using the minimum dimension
-      final minSize = boundingRect.width < boundingRect.height ? boundingRect.width : boundingRect.height;
-      final squareSize = (minSize * 0.95).round(); // Slightly smaller to ensure we stay within bounds
-      
-      // Crop a perfect square from the center of the detected region
-      final croppedBoard = cv.getRectSubPix(srcMat, (squareSize, squareSize), 
-                                           cv.Point2f(boundingRect.x + boundingRect.width / 2, 
-                                                      boundingRect.y + boundingRect.height / 2));
-      
-      // Always resize to exactly 512x512 for consistent grid alignment
-      final resized = cv.resize(croppedBoard, (512, 512));
-      
-      print('[OpenCV] Contour detection successful - area: $maxArea');
-      return resized;
-      
-    } catch (e) {
-      print('[OpenCV] Contour detection error: $e');
-      return null;
     }
+
+    return overlay;
   }
-  
-  /// Edge-based detection for finding rectangular regions
-  static Future<cv.Mat?> _detectChessboardByEdges(cv.Mat srcMat) async {
-    try {
-      print('[OpenCV] Attempting edge-based detection');
-      
-      // Convert to grayscale
-      final gray = cv.cvtColor(srcMat, cv.COLOR_BGR2GRAY);
-      
-      // Apply Gaussian blur
-      final blurred = cv.gaussianBlur(gray, (5, 5), 0);
-      
-      // Detect edges using Canny
-      final edges = cv.canny(blurred, 50, 150);
-      
-      // Find lines using HoughLinesP
-      final linesVec = cv.HoughLinesP(edges, 1, cv.CV_PI / 180, 100, minLineLength: 100, maxLineGap: 10);
-      
-      if (linesVec.rows < 10) {
-        print('[OpenCV] Not enough lines detected: ${linesVec.rows}');
-        return null;
-      }
-      
-      // Analyze line orientations to find board region
-      final horizontalLines = <List<int>>[];
-      final verticalLines = <List<int>>[];
-      
-      for (int i = 0; i < linesVec.rows; i++) {
-        final line = linesVec.row(i);
-        final x1 = line.at<int>(0, 0);
-        final y1 = line.at<int>(0, 1);
-        final x2 = line.at<int>(0, 2);
-        final y2 = line.at<int>(0, 3);
-        
-        final dx = (x1 - x2).abs();
-        final dy = (y1 - y2).abs();
-        
-        if (dx > dy * 2) {
-          // More horizontal than vertical
-          horizontalLines.add([x1, y1, x2, y2]);
-        } else if (dy > dx * 2) {
-          // More vertical than horizontal
-          verticalLines.add([x1, y1, x2, y2]);
-        }
-      }
-      
-      print('[OpenCV] Found ${horizontalLines.length} horizontal, ${verticalLines.length} vertical lines');
-      
-      if (horizontalLines.length < 3 || verticalLines.length < 3) {
-        return null;
-      }
-      
-      // Find bounding box from line positions
-      final bounds = _findBoundsFromLines(horizontalLines, verticalLines, srcMat);
-      if (bounds == null) return null;
-      
-      // Make the crop square and resize to 512x512
-      final squareSize = bounds.width < bounds.height ? bounds.width : bounds.height;
-      final croppedBoard = cv.getRectSubPix(srcMat, (squareSize, squareSize),
-                                           cv.Point2f(bounds.x + squareSize / 2, bounds.y + squareSize / 2));
-      
-      // Always resize to exactly 512x512 for consistent grid alignment  
-      final resized = cv.resize(croppedBoard, (512, 512));
-      
-      print('[OpenCV] Edge detection successful');
-      return resized;
-      
-    } catch (e) {
-      print('[OpenCV] Edge detection error: $e');
-      return null;
-    }
-  }
-  
-  /// Find bounds from detected lines
-  static cv.Rect? _findBoundsFromLines(List<List<int>> horizontalLines, List<List<int>> verticalLines, cv.Mat srcMat) {
-    try {
-      // Get Y positions from horizontal lines
-      final yPositions = horizontalLines.map((line) => ((line[1] + line[3]) / 2).round()).toList();
-      yPositions.sort();
-      
-      // Get X positions from vertical lines  
-      final xPositions = verticalLines.map((line) => ((line[0] + line[2]) / 2).round()).toList();
-      xPositions.sort();
-      
-      if (yPositions.length < 2 || xPositions.length < 2) return null;
-      
-      // Use outer bounds with some padding
-      final minY = yPositions.first;
-      final maxY = yPositions.last;
-      final minX = xPositions.first;
-      final maxX = xPositions.last;
-      
-      final padding = ((srcMat.cols + srcMat.rows) / 2 * 0.05).round();
-      final left = (minX - padding).clamp(0, srcMat.cols);
-      final top = (minY - padding).clamp(0, srcMat.rows);
-      final right = (maxX + padding).clamp(0, srcMat.cols);
-      final bottom = (maxY + padding).clamp(0, srcMat.rows);
-      
-      final width = right - left;
-      final height = bottom - top;
-      
-      // Ensure roughly square and minimum size
-      final size = width < height ? width : height;
-      if (size < 200) return null;
-      
-      return cv.Rect(left, top, size, size);
-      
-    } catch (e) {
-      print('[OpenCV] Bounds calculation error: $e');
-      return null;
-    }
-  }
-  
-  /// Intelligent center crop using OpenCV
-  static Uint8List? _intelligentCenterCrop(cv.Mat srcMat) {
-    try {
-      final width = srcMat.cols;
-      final height = srcMat.rows;
-      final minDim = width < height ? width : height;
-      
-      // Take 85% to avoid borders
-      final cropSize = (minDim * 0.85).round();
-      
-      final centerX = width / 2;
-      final centerY = height / 2;
-      
-      final croppedBoard = cv.getRectSubPix(srcMat, (cropSize, cropSize), 
-                                           cv.Point2f(centerX, centerY));
-      
-      // Always resize to exactly 512x512 for consistent grid alignment
-      final resized = cv.resize(croppedBoard, (512, 512));
-      
-      return _matToBytes(resized);
-      
-    } catch (e) {
-      print('[OpenCV] Intelligent crop error: $e');
-      return null;
-    }
-  }
-  
+
   /// Convert OpenCV Mat to bytes
   static Uint8List _matToBytes(cv.Mat mat) {
     return cv.imencode('.png', mat).$2;
-  }
-  
-  /// Simple center crop fallback
-  static Uint8List? _centerCropSquare(Uint8List imageBytes) {
-    try {
-      return imageBytes; // Return original as final fallback
-    } catch (e) {
-      print('[OpenCV] Center crop error: $e');
-      return null;
-    }
   }
 }

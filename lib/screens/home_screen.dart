@@ -78,12 +78,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _initializeImageProcessor() async {
     try {
       if (kDebugMode) debugPrint('HomeScreen: Starting image processors initialization...');
+      // Export debug crops to your Mac while developing
+      // Update to match your local server if needed
+      if (kDebugMode) {
+        // Update to Mac current LAN IP
+        // ipconfig getifaddr en0
+        ImageProcessor.debugExportBaseUrl = 'http://192.168.2.237:8787';
+      }
       
       // Initialize 2D image processor
       await _imageProcessor.init();
       if (kDebugMode) debugPrint('HomeScreen: 2D image processor initialized successfully');
       
-      // Test PyTorch availability first
+      // Test PyTorch availability firstw
       final availability = await _imageProcessorPyTorch.testAvailability();
       if (kDebugMode) debugPrint('HomeScreen: PyTorch availability: $availability');
       
@@ -492,30 +499,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           child: Column(
             children: [
               Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 20),
-                        
-                        // Modern Header
-                        _buildModernHeader(),
-                        
-                        const SizedBox(height: 60),
-                        
-                        // Main Action Section
-                        _buildMainActionSection(),
-                        
-                        const SizedBox(height: 40),
-                        
-                        // Quick Actions
-                        _buildQuickActions(),
-                        
-                        const SizedBox(height: 60),
-                      ],
-                    ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 20),
+
+                      // Modern Header
+                      _buildModernHeader(),
+
+                      const Spacer(flex: 2),
+
+                      // Main Action Section
+                      _buildMainActionSection(),
+
+                      const Spacer(flex: 1),
+
+                      // Quick Actions
+                      _buildQuickActions(),
+
+                      const Spacer(flex: 2),
+                    ],
                   ),
                 ),
               ),
@@ -607,7 +611,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           onTap: _showScanOptions,
           child: Container(
             width: double.infinity,
-            height: 180,
+            height: 140,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -627,25 +631,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  width: 60,
-                  height: 60,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
-                    color: context.isDarkMode 
+                    color: context.isDarkMode
                       ? Colors.white.withOpacity(0.1)
                       : AppColors.lightBlue.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(
                     Icons.camera_alt_rounded,
-                    size: 28,
+                    size: 24,
                     color: context.primaryTextColor,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 Text(
                   'Scan Position',
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: 18,
                     fontWeight: FontWeight.w600,
                     color: context.primaryTextColor,
                   ),
@@ -708,7 +712,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: context.surfaceColor,
           borderRadius: BorderRadius.circular(16),
@@ -721,10 +725,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
-                color: context.isDarkMode 
+                color: context.isDarkMode
                   ? Colors.white.withOpacity(0.1)
                   : AppColors.lightBlue.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(12),
@@ -735,11 +739,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 color: context.primaryTextColor,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Text(
               title,
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: context.primaryTextColor,
               ),
