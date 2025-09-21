@@ -212,13 +212,10 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             
             // Evaluation bar directly below board
             if (!_analysisController.isInvalidPosition && _analysisController.principalVariation.isNotEmpty)
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                child: AnalysisWidgets.buildEvaluationBar(
-                  evaluationScore: _analysisController.evaluationScore,
-                  isMateScore: _analysisController.isMateScore,
-                  mateInMoves: _analysisController.mateInMoves,
-                ),
+              AnalysisWidgets.buildEvaluationBar(
+                evaluationScore: _analysisController.evaluationScore,
+                isMateScore: _analysisController.isMateScore,
+                mateInMoves: _analysisController.mateInMoves,
               ),
             
             // Analysis content
@@ -286,8 +283,8 @@ class _AnalysisScreenState extends State<AnalysisScreen>
       ),
       child: SafeArea(
         child: Container(
-          height: 80,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          height: 68,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
@@ -331,7 +328,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
           onTap: enabled ? onPressed : null,
           borderRadius: BorderRadius.circular(12),
           child: Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: enabled 
                 ? (context.isDarkMode 

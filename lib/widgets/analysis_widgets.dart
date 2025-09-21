@@ -220,6 +220,7 @@ class AnalysisWidgets {
   }) {
     return Builder(
       builder: (context) => Container(
+        width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: context.surfaceColor,
@@ -227,6 +228,10 @@ class AnalysisWidgets {
             top: BorderSide(
               color: context.borderColor,
               width: 1.5,
+            ),
+            bottom: BorderSide(
+              color: context.borderColor,
+              width: 1.0,
             ),
           ),
         ),
