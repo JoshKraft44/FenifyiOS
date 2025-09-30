@@ -109,20 +109,28 @@ class StockfishIsolateManager {
 
   Future<void> cleanup() async {
     if (kDebugMode) debugPrint('Cleaning up isolate resources...');
-    
+
+    // First try to gracefully dispose
     if (_sendPort != null) {
       try {
         _sendPort!.send('dispose');
+        // Give time for graceful shutdown
+        await Future.delayed(const Duration(milliseconds: 200));
       } catch (e) {
         if (kDebugMode) debugPrint('Error sending dispose command: $e');
       }
+      _sendPort = null;
     }
 
+    // Force kill the isolate
     if (_isolate != null) {
       try {
         if (kDebugMode) debugPrint('ISO: KILLING');
-        _isolate!.kill();
+        _isolate!.kill(priority: Isolate.immediate);
         if (kDebugMode) debugPrint('ISO: KILLED');
+
+        // Wait for complete termination
+        await Future.delayed(const Duration(milliseconds: 300));
       } catch (e) {
         if (kDebugMode) debugPrint('ISO: KILL_FAILED - $e');
         if (kDebugMode) debugPrint('Error killing isolate: $e');
@@ -139,6 +147,7 @@ class StockfishIsolateManager {
       _receivePort = null;
     }
 
+    // Ensure all references are cleared
     _sendPort = null;
   }
 

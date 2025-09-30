@@ -7,11 +7,11 @@ import '../constants/app_colors.dart';
 import '../constants/app_dimensions.dart';
 import '../providers/theme_provider.dart';
 import '../screens/analysis_screen/analysis_screen.dart';
+import '../screens/image_processing_screen.dart';
 import '../screens/saved_positions_screen/saved_positions_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/pro_screen.dart';
 import '../services/image_processing/image_processor.dart';
-import '../services/image_processing/image_processor_pytorch.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -26,9 +26,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final TextEditingController _fenController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final ImageProcessor _imageProcessor = ImageProcessor();
-  final ImageProcessorPyTorch _imageProcessorPyTorch = ImageProcessorPyTorch();
   int _selectedIndex = 0;
-  String _selectedScanType = '2D'; // Track which model is selected
   
   late AnimationController _fadeController;
   late AnimationController _pulseController;
@@ -60,7 +58,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 2000),
       vsync: this,
-    )..repeat();
+    )..repeat(reverse: true);
     
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _fadeController, curve: Curves.easeOut),
@@ -90,18 +88,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       await _imageProcessor.init();
       if (kDebugMode) debugPrint('HomeScreen: 2D image processor initialized successfully');
       
-      // Test PyTorch availability firstw
-      final availability = await _imageProcessorPyTorch.testAvailability();
-      if (kDebugMode) debugPrint('HomeScreen: PyTorch availability: $availability');
-      
-      // Initialize PyTorch 3D image processor
-      try {
-        await _imageProcessorPyTorch.init();
-        if (kDebugMode) debugPrint('HomeScreen: PyTorch 3D image processor initialized successfully');
-      } catch (pytorchError) {
-        if (kDebugMode) debugPrint('HomeScreen: PyTorch initialization failed: $pytorchError');
-        // Continue without PyTorch - app can still use 2D model
-      }
       
       if (kDebugMode) debugPrint('HomeScreen: Image processors initialization completed');
     } catch (e) {
@@ -201,40 +187,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     try {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-      
+
       if (image != null) {
-        setState(() {
-          _isProcessing = true;
-        });
-        
         // Use io.File explicitly to avoid dartchess File conflict
         final imageFile = io.File(image.path);
-        
-        // Use the selected model type
-        String fen;
-        if (_selectedScanType == '3D' && _imageProcessorPyTorch.isInitialized) {
-          fen = await _imageProcessorPyTorch.processImageFile(imageFile);
-        } else {
-          if (_selectedScanType == '3D' && !_imageProcessorPyTorch.isInitialized) {
-            if (kDebugMode) debugPrint('HomeScreen: PyTorch not initialized, falling back to 2D model');
-          }
-          fen = await _imageProcessor.processImageFile(imageFile);
-        }
-            
-        if (kDebugMode) debugPrint('Processed with $_selectedScanType model: $fen');
-        
-        setState(() {
-          _isProcessing = false;
-          _fenController.text = fen;
-        });
-        
-        _navigateToAnalysis(fen);
+
+        // Navigate to image processing screen
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => ImageProcessingScreen(imageFile: imageFile),
+          ),
+        );
       }
     } catch (e) {
-      setState(() {
-        _isProcessing = false;
-      });
-      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error picking image: $e'),
@@ -257,11 +222,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         maxChildSize: 0.95,
         minChildSize: 0.5,
         builder: (context, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.black,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          decoration: BoxDecoration(
+            color: context.backgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             border: Border(
-              top: BorderSide(color: Colors.white12, width: 1),
+              top: BorderSide(color: context.borderColor, width: 1),
             ),
           ),
           child: SafeArea(
@@ -279,18 +244,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           width: 40,
                           height: 4,
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.3),
+                            color: context.secondaryTextColor.withOpacity(0.3),
                             borderRadius: BorderRadius.circular(2),
                           ),
                         ),
                       ),
                       const SizedBox(height: 24),
-                      const Text(
+                      Text(
                         'Manual Entry',
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                          color: context.primaryTextColor,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -298,7 +263,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         'Enter FEN notation to analyze a position',
                         style: TextStyle(
                           fontSize: 16,
-                          color: Colors.white.withOpacity(0.7),
+                          color: context.secondaryTextColor,
                         ),
                       ),
                       const SizedBox(height: 32),
@@ -306,27 +271,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       // FEN input field
                       TextFormField(
                         controller: _fenController,
-                        style: const TextStyle(color: Colors.white),
+                        style: TextStyle(color: context.primaryTextColor),
                         decoration: InputDecoration(
                           labelText: 'FEN String',
-                          labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                          labelStyle: TextStyle(color: context.secondaryTextColor),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                            borderSide: BorderSide(color: context.borderColor),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                            borderSide: BorderSide(color: context.borderColor),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
                             borderSide: BorderSide(color: AppColors.columbiaBlue, width: 2),
                           ),
-                          prefixIcon: Icon(Icons.edit_note, color: Colors.white.withOpacity(0.7)),
+                          prefixIcon: Icon(Icons.edit_note, color: context.secondaryTextColor),
                           hintText: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
+                          hintStyle: TextStyle(color: context.secondaryTextColor.withOpacity(0.6)),
                           filled: true,
-                          fillColor: Colors.white.withOpacity(0.05),
+                          fillColor: context.surfaceColor,
                         ),
                         maxLines: 3,
                         validator: _validateFEN,
@@ -339,7 +304,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 18,
-                          color: Colors.white.withOpacity(0.9),
+                          color: context.primaryTextColor,
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -354,16 +319,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             },
                             child: Container(
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.05),
+                                color: context.surfaceColor,
                                 borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: Colors.white.withOpacity(0.1)),
+                                border: Border.all(color: context.borderColor),
                               ),
                               child: ListTile(
                                 title: Text(
                                   entry.key,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontWeight: FontWeight.w500,
-                                    color: Colors.white,
+                                    color: context.primaryTextColor,
                                   ),
                                 ),
                                 leading: Container(
@@ -372,9 +337,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                     color: AppColors.columbiaBlue.withOpacity(0.2),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  child: const Icon(Icons.grid_3x3, color: Colors.white, size: 20),
+                                  child: Icon(Icons.grid_3x3, color: context.primaryTextColor, size: 20),
                                 ),
-                                trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.white.withOpacity(0.5)),
+                                trailing: Icon(Icons.arrow_forward_ios, size: 16, color: context.secondaryTextColor),
                               ),
                             ),
                           ),
@@ -398,7 +363,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           label: const Text('Analyze Position'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.columbiaBlue,
-                            foregroundColor: Colors.black,
+                            foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
@@ -550,10 +515,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   height: 70,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [
-                        AppColors.columbiaBlue.withOpacity(0.3),
-                        AppColors.lightBlue.withOpacity(0.1),
-                      ],
+                      colors: context.isDarkMode
+                          ? [
+                              AppColors.columbiaBlue.withOpacity(0.3),
+                              AppColors.lightBlue.withOpacity(0.1),
+                            ]
+                          : [
+                              Colors.white.withOpacity(0.9),
+                              Colors.white.withOpacity(0.7),
+                            ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -563,10 +533,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       width: 1,
                     ),
                   ),
-                  child: Icon(
-                    Icons.auto_awesome_rounded,
-                    size: 32,
-                    color: context.primaryTextColor,
+                  child: ColorFiltered(
+                    colorFilter: context.isDarkMode
+                        ? const ColorFilter.matrix([
+                            -1,  0,  0, 0, 255,
+                             0, -1,  0, 0, 255,
+                             0,  0, -1, 0, 255,
+                             0,  0,  0, 1,   0,
+                          ])
+                        : const ColorFilter.matrix([
+                             1, 0, 0, 0, 0,
+                             0, 1, 0, 0, 0,
+                             0, 0, 1, 0, 0,
+                             0, 0, 0, 1, 0,
+                          ]),
+                    child: Image.asset(
+                      'assets/images/icon2.png',
+                      width: 32,
+                      height: 32,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 ),
               );
@@ -656,7 +642,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Camera • Gallery • $_selectedScanType Model',
+                  'Camera • Gallery',
                   style: TextStyle(
                     fontSize: 14,
                     color: context.secondaryTextColor,
@@ -674,15 +660,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Quick Actions',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: context.primaryTextColor.withOpacity(0.9),
-          ),
-        ),
-        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
@@ -911,12 +888,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       color: context.secondaryTextColor,
                     ),
                   ),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Scan Type Options
-                  _buildScanTypeSection(setModalState),
-                  
+
                   const SizedBox(height: 24),
                   
                   // Input Method Options  
@@ -933,49 +905,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildScanTypeSection([Function? setModalState]) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Scan Type',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: context.primaryTextColor.withOpacity(0.9),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _buildScanTypeCard(
-                '2D',
-                'Standard board scan',
-                Icons.grid_view_rounded,
-                true,
-                () => _handleScanType('2D', setModalState),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildScanTypeCard(
-                '3D',
-                _imageProcessorPyTorch.isInitialized 
-                  ? 'Advanced PyTorch model' 
-                  : 'PyTorch unavailable',
-                Icons.view_in_ar_rounded,
-                _imageProcessorPyTorch.isInitialized,
-                _imageProcessorPyTorch.isInitialized 
-                  ? () => _handleScanType('3D', setModalState)
-                  : null,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
 
   Widget _buildInputMethodSection() {
     return Column(
@@ -1007,77 +936,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildScanTypeCard(String title, String subtitle, IconData icon, bool enabled, VoidCallback? onTap) {
-    final isSelected = _selectedScanType == title;
-    
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: enabled 
-            ? (isSelected 
-                ? AppColors.columbiaBlue.withOpacity(0.1)
-                : context.surfaceColor)
-            : context.surfaceColor.withOpacity(0.5),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: enabled 
-              ? (isSelected 
-                  ? AppColors.columbiaBlue 
-                  : context.borderColor)
-              : context.borderColor.withOpacity(0.5),
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: enabled 
-                  ? AppColors.columbiaBlue.withOpacity(0.2) 
-                  : (context.isDarkMode 
-                      ? Colors.white.withOpacity(0.05)
-                      : AppColors.lightBlue.withOpacity(0.1)),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(
-                icon,
-                size: 24,
-                color: enabled 
-                  ? context.primaryTextColor 
-                  : context.primaryTextColor.withOpacity(0.4),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: enabled 
-                  ? context.primaryTextColor 
-                  : context.primaryTextColor.withOpacity(0.4),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                color: enabled 
-                  ? context.secondaryTextColor 
-                  : context.secondaryTextColor.withOpacity(0.5),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildInputMethodCard(IconData icon, String title, String subtitle, VoidCallback onTap) {
     return GestureDetector(
@@ -1142,31 +1000,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  void _handleScanType(String type, [Function? setModalState]) {
-    setState(() {
-      _selectedScanType = type;
-    });
-    
-    // Also update the modal state if provided
-    if (setModalState != null) {
-      setModalState(() {
-        _selectedScanType = type;
-      });
-    }
-    
-    HapticFeedback.selectionClick();
-    
-    if (kDebugMode) debugPrint('Selected scan type: $type');
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$type model selected'),
-        backgroundColor: AppColors.columbiaBlue,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 1),
-      ),
-    );
-  }
 
   void _handleInputMethod(String method) {
     Navigator.pop(context);

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../../widgets/analysis_widgets.dart';
+import '../../../providers/theme_provider.dart';
 import '../controllers/analysis_controller.dart';
-import 'promotion_widget.dart';
 import 'arrow_status_widget.dart';
+import 'variation_tree_widget.dart';
 import 'dart:ui' as ui;
 
 /// Main content area for analysis screen showing status, evaluation, and interactive elements
-class AnalysisContentWidget extends StatelessWidget {
+class AnalysisContentWidget extends StatefulWidget {
   final AnalysisController controller;
 
   const AnalysisContentWidget({
@@ -14,38 +15,149 @@ class AnalysisContentWidget extends StatelessWidget {
     required this.controller,
   }) : super(key: key);
 
+  @override
+  State<AnalysisContentWidget> createState() => _AnalysisContentWidgetState();
+}
+
+class _AnalysisContentWidgetState extends State<AnalysisContentWidget> {
+  late PageController _pageController;
+  int _currentPageIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
   // Color palette
   static const ui.Color deepNavy = ui.Color(0xFF1a1a2e);
   static const ui.Color successGreen = ui.Color(0xFF7FB069);
 
   @override
   Widget build(BuildContext context) {
-    if (controller.isInvalidPosition) {
+    if (widget.controller.isInvalidPosition) {
       return const SizedBox.shrink(); // No content for invalid positions
     }
 
+    return Column(
+      children: [
+        // Page indicator
+        if (widget.controller.principalVariation.isNotEmpty)
+          _buildPageIndicator(context),
+
+        // PageView with best moves and variation tree
+        Expanded(
+          child: PageView(
+            controller: _pageController,
+            onPageChanged: (index) {
+              setState(() {
+                _currentPageIndex = index;
+              });
+            },
+            children: [
+              // Page 0: Best moves analysis
+              _buildBestMovesPage(context),
+
+              // Page 1: Variation tree
+              _buildVariationTreePage(context),
+            ],
+          ),
+        ),
+
+      ],
+    );
+  }
+
+  Widget _buildPageIndicator(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _buildIndicatorDot(context, 0, 'Best Moves'),
+          const SizedBox(width: 20),
+          _buildIndicatorDot(context, 1, 'Variations'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIndicatorDot(BuildContext context, int index, String label) {
+    final isActive = _currentPageIndex == index;
+    return GestureDetector(
+      onTap: () {
+        _pageController.animateToPage(
+          index,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      },
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: isActive
+                  ? context.primaryTextColor
+                  : context.secondaryTextColor.withOpacity(0.3),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+              color: isActive
+                  ? context.primaryTextColor
+                  : context.secondaryTextColor.withOpacity(0.7),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBestMovesPage(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
       child: Column(
         children: [
           // Analysis card
-          if (controller.principalVariation.isNotEmpty)
+          if (widget.controller.principalVariation.isNotEmpty)
             AnalysisWidgets.buildAnalysisCard(
-              evaluationScore: controller.evaluationScore,
-              isMateScore: controller.isMateScore,
-              mateInMoves: controller.mateInMoves,
-              multiPV: controller.multiPV,
-              moveEvaluations: controller.moveEvaluations,
+              evaluationScore: widget.controller.evaluationScore,
+              isMateScore: widget.controller.isMateScore,
+              mateInMoves: widget.controller.mateInMoves,
+              multiPV: widget.controller.multiPV,
+              moveEvaluations: widget.controller.moveEvaluations,
               formatMove: _formatMove,
-            ),
-          
-          // Promotion status widget
-          if (controller.awaitingPromotion)
-            PromotionWidget(
-              onPromotionSelection: controller.onPromotionSelection,
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildVariationTreePage(BuildContext context) {
+    return VariationTreeWidget(
+      initialFen: widget.controller.originalFen,
+      rootNode: widget.controller.variationTreeRoot,
+      currentNode: widget.controller.currentVariationNode,
+      onMoveSelected: (node) {
+        widget.controller.navigateToVariationNode(node);
+      },
+      onMoveAdded: (parentNode, move) {
+        widget.controller.addMoveToVariationTree(parentNode, move);
+      },
     );
   }
 

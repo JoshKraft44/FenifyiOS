@@ -7,6 +7,13 @@ class AnalysisParser {
       final fen = data['fen'] as String?;
       final analysisId = data['analysisId'];
 
+      // Debug logging for turn tracking
+      if (kDebugMode && fen != null) {
+        final fenParts = fen.split(' ');
+        final turn = fenParts.length > 1 ? fenParts[1] : 'unknown';
+        debugPrint('DEBUG_PARSER: FEN=$fen, Turn=$turn, ID=$analysisId');
+      }
+
       if (data.containsKey('invalid_position') && data['invalid_position'] == true) {
         final errorMessage = data['error'] as String? ?? 'Position is invalid';
         final result = {

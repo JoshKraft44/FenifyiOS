@@ -61,7 +61,6 @@ class _SavedPositionsScreenState extends State<SavedPositionsScreen>
       backgroundColor: context.backgroundColor,
       appBar: _buildAppBar(),
       body: _buildBody(),
-      floatingActionButton: _buildFloatingActionButton(),
     );
   }
 
@@ -224,15 +223,6 @@ class _SavedPositionsScreenState extends State<SavedPositionsScreen>
     );
   }
 
-  Widget _buildFloatingActionButton() {
-    return FloatingActionButton.extended(
-      onPressed: () => _controller.loadSavedPositions(),
-      backgroundColor: context.accentColor,
-      foregroundColor: context.isDarkMode ? Colors.black : AppColors.deepNavy,
-      icon: const Icon(Icons.refresh_rounded),
-      label: const Text('Refresh'),
-    );
-  }
 
   void _showClearAllDialog() async {
     final confirmed = await showDialog<bool>(

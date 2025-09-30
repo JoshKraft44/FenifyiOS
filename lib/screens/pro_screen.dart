@@ -75,7 +75,7 @@ class _ProScreenState extends State<ProScreen> {
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.deepNavy,
+                    color: context.primaryTextColor,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -134,7 +134,7 @@ class _ProScreenState extends State<ProScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 12,
-                    color: AppColors.cadetGray,
+                    color: context.secondaryTextColor,
                     height: 1.4,
                   ),
                 ),
@@ -159,9 +159,9 @@ class _ProScreenState extends State<ProScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.surfaceColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.lightBlue.withOpacity(0.2)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -171,7 +171,7 @@ class _ProScreenState extends State<ProScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: AppColors.deepNavy,
+              color: context.primaryTextColor,
             ),
           ),
           const SizedBox(height: 16),
@@ -197,7 +197,7 @@ class _ProScreenState extends State<ProScreen> {
                   child: Text(
                     feature,
                     style: TextStyle(
-                      color: AppColors.deepNavy,
+                      color: context.primaryTextColor,
                       fontSize: 15,
                     ),
                   ),
@@ -222,10 +222,10 @@ class _ProScreenState extends State<ProScreen> {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.columbiaBlue.withOpacity(0.1) : Colors.white,
+          color: isSelected ? AppColors.columbiaBlue.withOpacity(0.1) : context.surfaceColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? AppColors.columbiaBlue : AppColors.lightBlue.withOpacity(0.2),
+            color: isSelected ? AppColors.columbiaBlue : context.borderColor,
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -243,7 +243,7 @@ class _ProScreenState extends State<ProScreen> {
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.deepNavy,
+                        color: context.primaryTextColor,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -255,14 +255,14 @@ class _ProScreenState extends State<ProScreen> {
                             style: TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.deepNavy,
+                              color: context.primaryTextColor,
                             ),
                           ),
                           TextSpan(
                             text: ' $period',
                             style: TextStyle(
                               fontSize: 14,
-                              color: AppColors.cadetGray,
+                              color: context.secondaryTextColor,
                             ),
                           ),
                         ],
@@ -276,7 +276,7 @@ class _ProScreenState extends State<ProScreen> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: isSelected ? AppColors.columbiaBlue : AppColors.cadetGray,
+                      color: isSelected ? AppColors.columbiaBlue : context.secondaryTextColor,
                       width: 2,
                     ),
                     color: isSelected ? AppColors.columbiaBlue : Colors.transparent,

@@ -290,6 +290,7 @@ class StockfishService with DisposableMixin {
 
     // Start analysis
     if (kDebugMode) debugPrint('Sending analysis command to isolate...');
+    if (kDebugMode) debugPrint('DEBUG_ANALYSIS: FEN=$cleanFen, ID=$analysisId, Turn=${cleanFen.split(' ')[1]}');
     _isolateManager!.sendAnalysisCommand(cleanFen, analysisId);
 
     // Set up real-time analysis data processing
@@ -372,27 +373,52 @@ class StockfishService with DisposableMixin {
     }
   }
 
-  /// Gracefully shuts down the service while preserving singleton pattern
-  /// Implements DisposableMixin.onDispose for resource management
+  // Gracefully shuts down the service while preserving singleton pattern
+  // Implements DisposableMixin.onDispose for resource management
+  // Completely Restart engine to avoid state corrpution
+
+  Future<void> restartEngine() async {
+    if (kDebugMode) debugPrint('Restarting Stockfish engine for clean state');
+
+    // Stop and cleanup everything with proper delay
+    await onDispose();
+
+    // Add delay to ensure cleanup is complete
+    await Future.delayed(const Duration(milliseconds: 1000));
+
+    // Reset all state for fresh start
+    _initRetryCount = 0;
+    _analysisId = 0;
+    _engineInitialized = false;
+    _initializationInProgress = false;
+
+    if (kDebugMode) debugPrint('Stockfish state reset complete, reinitializing...');
+
+    // Reinitialize for fresh analysis
+    await initialize();
+
+    if (kDebugMode) debugPrint('Stockfish engine restart completed');
+  }
+
   @override
   Future<void> onDispose() async {
     if (kDebugMode) debugPrint('Stopping Stockfish service');
     await stopAnalysis();
-    
+
     if (_isolateManager != null) {
       await _isolateManager!.cleanup();
       _isolateManager = null;
     }
-    
+
     _engineInitialized = false;
     _initializationInProgress = false;
     _analysisParser = null;
     _positionValidator = null;
-    
+
     // Reset analysis ID for fresh sessions
     _analysisId = 0;
     if (kDebugMode) debugPrint('Stockfish Analysis ID reset to 0 for fresh session');
-    
+
     if (kDebugMode) debugPrint('Success: Stockfish service stopped (can be restarted)');
   }
   
