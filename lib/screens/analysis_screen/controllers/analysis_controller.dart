@@ -12,6 +12,7 @@ import '../../../services/san_converter.dart';
 import '../../../providers/theme_provider.dart';
 import '../../saved_positions_screen/saved_positions_screen.dart';
 import '../models/analysis_state.dart';
+import '../widgets/variation_tree_widget.dart';
 import 'dart:async';
 import '../../../constants/app_colors.dart';
 import 'dart:math' as math;
@@ -38,6 +39,10 @@ class AnalysisController {
 
   Position? _position;
   chess_lib.Chess? _chess;
+
+  // Variation tree state
+  MoveNode? _variationTreeRoot;
+  MoveNode? _currentVariationNode;
 
 
   AnalysisController({
@@ -80,6 +85,8 @@ class AnalysisController {
   Move? get pendingPromotionMove => _state.pendingPromotionMove;
   Position? get position => _position;
   chess_lib.Chess? get chess => _chess;
+  MoveNode? get currentVariationNode => _currentVariationNode;
+  MoveNode? get variationTreeRoot => _variationTreeRoot;
 
   Future<void> initialize() async {
     if (_disposed) return;
@@ -104,6 +111,7 @@ class AnalysisController {
 
     try {
       await _initializePositions();
+      _initializeVariationTree();
       _notifyStateChanged();
       
       // Check state after initialization is complete (no timer race condition)
@@ -219,6 +227,19 @@ class AnalysisController {
     }
   }
 
+  void _initializeVariationTree() {
+    try {
+      final startingFen = _state.currentFen;
+      _variationTreeRoot = MoveNode.fromFen(startingFen);
+      _currentVariationNode = _variationTreeRoot;
+      if (kDebugMode) debugPrint('VARIATION_TREE: Initialized with FEN: $startingFen');
+    } catch (e) {
+      if (kDebugMode) debugPrint('VARIATION_TREE: Failed to initialize: $e');
+      _variationTreeRoot = null;
+      _currentVariationNode = null;
+    }
+  }
+
   Future<void> _initializeAndStartAnalysis() async {
     if (_disposed || _state.isInvalidPosition) return;
 
@@ -232,26 +253,18 @@ class AnalysisController {
     try {
       if (kDebugMode) debugPrint('INIT: Starting fresh Stockfish initialization...');
       
-      // Preserve original behavior - don't force restart
-      if (false) { // Simplified - no aggressive disposal
-        if (kDebugMode) debugPrint('INIT: Force restarting Stockfish service for fresh session...');
-        
-        try {
-          if (_stockfishService.isAnalyzing) {
-            await _stockfishService.stopAnalysis();
-          }
-          await _stockfishService.dispose();
-          await Future.delayed(const Duration(milliseconds: 500));
-          if (kDebugMode) debugPrint('INIT: Isolate cleanup complete, initializing fresh engine...');
-        } catch (e) {
-          if (kDebugMode) debugPrint('INIT: Error during forced cleanup (continuing): $e');
-        }
+      // Restart engine completely for clean state
+      if (kDebugMode) debugPrint('INIT: Restarting Stockfish engine for clean state...');
+
+      try {
+        await _stockfishService.restartEngine();
+        if (kDebugMode) debugPrint('INIT: Engine restart completed successfully');
+      } catch (e) {
+        if (kDebugMode) debugPrint('INIT: Error during engine restart (continuing): $e');
+        // Fallback to just resetting analysis ID and reinitializing
+        _stockfishService.resetAnalysisId();
+        await _stockfishService.initialize();
       }
-      
-      // Force reset analysis ID to ensure sync
-      _stockfishService.resetAnalysisId();
-      
-      await _stockfishService.initialize();
 
       if (_disposed) return;
 
@@ -707,6 +720,10 @@ class AnalysisController {
 
     // Get current FEN
     final currentFen = _position?.fen ?? _state.currentFen;
+    final fenParts = currentFen.split(' ');
+    final currentTurn = fenParts.length > 1 ? fenParts[1] : 'unknown';
+
+    if (kDebugMode) debugPrint('CONTROLLER_ANALYSIS: Starting analysis for FEN=$currentFen, Turn=$currentTurn');
     
     // Simplified deduplication check
     if (_state.isAnalyzing && _lastAnalyzedFen == currentFen) {
@@ -848,6 +865,11 @@ class AnalysisController {
         if (kDebugMode) debugPrint('Warning: Could not sync chess_lib: $e');
       }
       
+      // Update variation tree to root
+      if (_variationTreeRoot != null) {
+        _currentVariationNode = _variationTreeRoot;
+      }
+
       // Update state with canonical FEN
       _state = _state.copyWith(
         currentMoveIndex: 0,
@@ -906,7 +928,10 @@ class AnalysisController {
         } catch (e) {
           if (kDebugMode) debugPrint('Warning: Could not sync chess_lib: $e');
         }
-        
+
+        // Sync variation tree
+        _syncVariationTreeWithFen(canonicalFen);
+
         // Update state with canonical FEN
         _state = _state.copyWith(
           currentMoveIndex: newIndex,
@@ -957,25 +982,28 @@ class AnalysisController {
       try {
         final newIndex = _state.currentMoveIndex + 1;
         final historicalFen = _state.gameHistory[newIndex]['fen'] as String;
-        
+
         // Parse
         final setup = Setup.parseFen(historicalFen);
         if (setup == null) {
           if (kDebugMode) debugPrint('Invalid FEN in history: $historicalFen');
           return;
         }
-        
+
         // Create canonical position and FEN
         _position = Position.setupPosition(Rule.chess, setup);
         final canonicalFen = _position!.fen;
-        
+
         // Sync chess_lib to canonical FEN
         try {
           _chess = chess_lib.Chess.fromFEN(canonicalFen);
         } catch (e) {
           if (kDebugMode) debugPrint('Warning: Could not sync chess_lib: $e');
         }
-        
+
+        // Sync variation tree
+        _syncVariationTreeWithFen(canonicalFen);
+
         // Update state with canonical FEN
         _state = _state.copyWith(
           currentMoveIndex: newIndex,
@@ -1017,25 +1045,28 @@ class AnalysisController {
       try {
         final newIndex = _state.gameHistory.length - 1;
         final historicalFen = _state.gameHistory[newIndex]['fen'] as String;
-        
+
         // Parse with dartchess to get canonical FEN
         final setup = Setup.parseFen(historicalFen);
         if (setup == null) {
           if (kDebugMode) debugPrint('Invalid FEN in history: $historicalFen');
           return;
         }
-        
+
         // Create canonical position and FEN
         _position = Position.setupPosition(Rule.chess, setup);
         final canonicalFen = _position!.fen;
-        
+
         // Sync chess_lib to canonical FEN
         try {
           _chess = chess_lib.Chess.fromFEN(canonicalFen);
         } catch (e) {
           if (kDebugMode) debugPrint('Warning: Could not sync chess_lib: $e');
         }
-        
+
+        // Sync variation tree
+        _syncVariationTreeWithFen(canonicalFen);
+
         // Update state with canonical FEN
         _state = _state.copyWith(
           currentMoveIndex: newIndex,
@@ -1068,6 +1099,122 @@ class AnalysisController {
         });
       } catch (e) {
         if (kDebugMode) debugPrint('Error going to end: $e');
+      }
+    }
+  }
+
+  // Variation tree methods
+  void navigateToVariationNode(MoveNode node) {
+    if (_disposed || _state.isInvalidPosition) return;
+
+    try {
+      if (kDebugMode) debugPrint('VARIATION_TREE: Navigating to node with FEN: ${node.fen}');
+
+      // Update current variation node for UI synchronization
+      _currentVariationNode = node;
+
+      // Find the path from root to this node to build proper game history
+      final pathFromRoot = node.getPathFromRoot();
+
+      // Rebuild game history from the variation path
+      final newGameHistory = <Map<String, dynamic>>[];
+      for (int i = 0; i < pathFromRoot.length; i++) {
+        final pathNode = pathFromRoot[i];
+        newGameHistory.add({
+          'fen': pathNode.fen,
+          'move': pathNode.move.toString(),
+          'fromSquare': '',
+          'toSquare': '',
+        });
+      }
+
+      // Parse the FEN to update position
+      final setup = Setup.parseFen(node.fen);
+      if (setup == null) {
+        if (kDebugMode) debugPrint('VARIATION_TREE: Invalid FEN in node: ${node.fen}');
+        return;
+      }
+
+      // Update the position
+      _position = Position.setupPosition(Rule.chess, setup);
+      final canonicalFen = _position!.fen;
+
+      // Sync chess_lib
+      try {
+        _chess = chess_lib.Chess.fromFEN(canonicalFen);
+      } catch (e) {
+        if (kDebugMode) debugPrint('VARIATION_TREE: Could not sync chess_lib: $e');
+      }
+
+      // Update state with proper game history
+      _state = _state.copyWith(
+        currentFen: canonicalFen,
+        gameHistory: newGameHistory,
+        currentMoveIndex: newGameHistory.length - 1,
+        showBestMove: false,
+        highlightedSquares: <Square>{},
+        boardShapes: <Shape>{}.lock,
+        // Clear analysis data for clean restart
+        evaluationScore: 0.0,
+        isMateScore: false,
+        mateInMoves: 0,
+        bestMove: '',
+        bestMoveUci: '',
+        currentDepth: 0,
+        principalVariation: <String>[],
+        moveEvaluations: <String>[],
+        multiPV: <List<String>>[],
+        lastMoveFrom: null,
+        lastMoveTo: null,
+      );
+
+      _notifyStateChanged();
+
+      // Debug navigation state
+      if (kDebugMode) {
+        debugPrint('VARIATION_TREE: After navigation - currentMoveIndex: ${_state.currentMoveIndex}, gameHistoryLength: ${_state.gameHistory.length}');
+        debugPrint('VARIATION_TREE: Can go back: ${_state.currentMoveIndex > 0}, Can go forward: ${_state.currentMoveIndex < _state.gameHistory.length - 1}');
+      }
+
+      // Start fresh analysis for the new position
+      Future.delayed(const Duration(milliseconds: 200), () {
+        if (!_disposed) {
+          _analyzePositionSafely();
+        }
+      });
+
+    } catch (e) {
+      if (kDebugMode) debugPrint('VARIATION_TREE: Error navigating to node: $e');
+    }
+  }
+
+  void addMoveToVariationTree(MoveNode parentNode, Move move) {
+    if (_disposed || _state.isInvalidPosition || _variationTreeRoot == null) return;
+
+    try {
+      if (kDebugMode) debugPrint('VARIATION_TREE: Adding move ${move.toString()} to tree');
+
+      final newNode = parentNode.addMove(move);
+      _currentVariationNode = newNode;
+
+      if (kDebugMode) debugPrint('VARIATION_TREE: Move added, new node FEN: ${newNode.fen}');
+
+      _notifyStateChanged();
+    } catch (e) {
+      if (kDebugMode) debugPrint('VARIATION_TREE: Error adding move to tree: $e');
+    }
+  }
+
+  void _syncVariationTreeWithFen(String fen) {
+    if (_variationTreeRoot != null) {
+      final node = _variationTreeRoot!.findByFen(fen);
+      if (node != null) {
+        _currentVariationNode = node;
+        if (kDebugMode) debugPrint('VARIATION_TREE: Synced to node with FEN: $fen');
+        if (kDebugMode) debugPrint('VARIATION_TREE: Current node has ${node.variations.length} variations');
+      } else {
+        if (kDebugMode) debugPrint('VARIATION_TREE: No node found for FEN: $fen');
+        if (kDebugMode) debugPrint('VARIATION_TREE: Staying at current node');
       }
     }
   }
@@ -1266,8 +1413,22 @@ class AnalysisController {
       if (kDebugMode && false) debugPrint('Move made. History length: ${gameHistory.length}');
       if (kDebugMode && false) debugPrint('Current move index: ${_state.currentMoveIndex}');
 
+      // Update variation tree
+      if (_currentVariationNode != null && _variationTreeRoot != null) {
+        try {
+          final newVariationNode = _currentVariationNode!.addMove(move);
+          _currentVariationNode = newVariationNode;
+          if (kDebugMode) debugPrint('VARIATION_TREE: Move added to tree: ${move.toString()}');
+          if (kDebugMode) debugPrint('VARIATION_TREE: Root now has ${_variationTreeRoot!.variations.length} variations');
+        } catch (e) {
+          if (kDebugMode) debugPrint('VARIATION_TREE: Error adding move to tree: $e');
+        }
+      } else {
+        if (kDebugMode) debugPrint('VARIATION_TREE: Cannot add move - currentNode=${_currentVariationNode != null}, root=${_variationTreeRoot != null}');
+      }
+
       _notifyStateChanged();
-      
+
       // Properly stop previous analysis before starting new one
       _analyzePositionSafely();
     } catch (e) {

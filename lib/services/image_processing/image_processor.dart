@@ -28,17 +28,14 @@ class ImageProcessor {
   // to a local server for inspection (see tools/debug_crop_server.dart).
   static String? _debugExportBaseUrl;
   static set debugExportBaseUrl(String? url) {
-    _debugExportBaseUrl = url;
-    DebugExporter.baseUrl = url;
+    // Force disable debug exporter to prevent connection issues
+    _debugExportBaseUrl = null;
+    DebugExporter.baseUrl = null;
     if (kDebugMode) {
-      if (url == null || url.isEmpty) {
-        debugPrint('DebugExporter: disabled');
-      } else {
-        debugPrint('DebugExporter: enabled → $url');
-      }
+      debugPrint('DebugExporter: disabled (forced)');
     }
   }
-  static String? get debugExportBaseUrl => _debugExportBaseUrl;
+  static String? get debugExportBaseUrl => null; // Always disabled
 
   /// Maps TensorFlow Lite model predictions to chess piece notation
   static const List<String> _pieceMapping = [

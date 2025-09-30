@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/cupertino.dart';
 import '../edit_position_screen/edit_position_screen.dart';
 import '../../widgets/analysis_widgets.dart';
 import '../../providers/theme_provider.dart';
@@ -108,11 +109,18 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     // Update arrow colors based on current theme
     _analysisController.updateArrowsForTheme(context);
 
-    return Scaffold(
-      backgroundColor: context.backgroundColor,
-      appBar: _buildAppBar(),
-      body: _buildBody(boardSize),
-      bottomNavigationBar: _buildBottomNavigationBar(),
+    return WillPopScope(
+      onWillPop: () async {
+        // Only allow pop via back button, not swipe gesture
+        // Check if this was triggered by a swipe vs button press
+        return false; // Block all automatic pops
+      },
+      child: Scaffold(
+        backgroundColor: context.backgroundColor,
+        appBar: _buildAppBar(),
+        body: _buildBody(boardSize),
+        bottomNavigationBar: _buildBottomNavigationBar(),
+      ),
     );
   }
 
@@ -122,10 +130,14 @@ class _AnalysisScreenState extends State<AnalysisScreen>
       foregroundColor: context.iconColor,
       elevation: 0,
       systemOverlayStyle: context.isDarkMode ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+      leading: IconButton(
+        icon: Icon(Icons.arrow_back_ios_rounded, color: context.iconColor),
+        onPressed: () => Navigator.of(context).pop(),
+      ),
       title: Text(
-        'Analysis', 
+        'Analysis',
         style: TextStyle(
-          color: context.primaryTextColor, 
+          color: context.primaryTextColor,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -198,7 +210,13 @@ class _AnalysisScreenState extends State<AnalysisScreen>
           
           // Initializing widget
           if (_analysisController.isInitializing)
-            AnalysisWidgets.buildInitializingWidget(_analysisController.analysisText)
+            Expanded(
+              child: Center(
+                child: CircularProgressIndicator(
+                  color: context.isDarkMode ? Colors.white : Colors.black,
+                ),
+              ),
+            )
           else ...[
             // Turn indicator and depth bar above the board
             if (!_analysisController.isInvalidPosition)
