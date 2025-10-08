@@ -16,6 +16,7 @@ import '../widgets/variation_tree_widget.dart';
 import 'dart:async';
 import '../../../constants/app_colors.dart';
 import 'dart:math' as math;
+import '../../../utils/analysis_throttler.dart';
 
 class AnalysisController {
   final String initialFen;
@@ -37,6 +38,15 @@ class AnalysisController {
   DateTime? _lastAnalysisStart;
   String? _lastAnalyzedFen;
 
+  // Power-saving components
+  AnalysisThrottler? _throttler;
+  FenDebouncer? _fenDebouncer;
+  StateBatcher? _stateBatcher;
+  bool _isAppInBackground = false;
+  bool _isAnalysisViewVisible = true;
+  int _multiPVLines = 1; // Default to 1 line for power saving
+  bool _showAllVariations = false;
+
   Position? _position;
   chess_lib.Chess? _chess;
 
@@ -51,6 +61,14 @@ class AnalysisController {
   }) {
     _stockfishService = StockfishService();
     _moveDetector = ChessMoveDetector();
+
+    // Initialize power-saving components
+    _throttler = AnalysisThrottler(updatesPerSecond: 8);
+    _fenDebouncer = FenDebouncer(delay: const Duration(milliseconds: 300));
+    _stateBatcher = StateBatcher(
+      onFlush: _notifyStateChanged,
+      batchWindow: const Duration(milliseconds: 16),
+    );
   }
 
   // Getters for state
@@ -62,7 +80,9 @@ class AnalysisController {
   bool get boardFlipped => _state.boardFlipped;
   bool get showArrows => _state.showArrows;
   bool get awaitingPromotion => _state.awaitingPromotion;
-  
+  bool get showAllVariations => _showAllVariations;
+  int get multiPVLines => _multiPVLines;
+
   String get currentFen => _state.currentFen;
   String get originalFen => _state.originalFen;
   String get analysisText => _state.analysisText;
@@ -308,21 +328,31 @@ class AnalysisController {
       
       // Get Fen
       final currentFen = _position?.fen ?? _state.currentFen;
-      if (kDebugMode) debugPrint('INITIAL: Starting analysis for FEN: $currentFen');
-      
-      final analysisStream = _stockfishService.startContinuousAnalysis(currentFen);
+      if (kDebugMode) debugPrint('INITIAL: Starting analysis for FEN: $currentFen (MultiPV: $_multiPVLines)');
 
-      _analysisSubscription = analysisStream.listen(
+      final analysisStream = _stockfishService.startContinuousAnalysis(
+        currentFen,
+        multiPVLines: _multiPVLines,
+      );
+
+      // Feed analysis stream to throttler and subscribe to throttled output
+      final rawSubscription = analysisStream.listen((data) {
+        if (_throttler != null && !_disposed) {
+          _throttler!.add(data);
+        }
+      });
+
+      _analysisSubscription = _throttler!.stream.listen(
         (analysisData) {
           if (_disposed) return;
-          
+
           // Double-check analysis ID to prevent processing stale data
           final analysisId = analysisData['analysisId'];
           if (analysisId != null && analysisId != _currentAnalysisId) {
             if (kDebugMode) debugPrint('INITIAL: Dropping stale initial analysis data for ID: $analysisId (current: $_currentAnalysisId)');
             return;
           }
-          
+
           try {
             _parseAnalysisData(analysisData);
             _state = _state.copyWith(
@@ -331,7 +361,8 @@ class AnalysisController {
             );
             _updateBestMoveHighlight();
             _updateBestMoveArrows();
-            _notifyStateChanged();
+            // Use state batcher to coalesce updates
+            _stateBatcher?.markNeedsUpdate();
           } catch (e) {
             if (!_disposed) {
               _setError('Error processing analysis: $e');
@@ -633,6 +664,24 @@ class AnalysisController {
     _notifyStateChanged();
   }
 
+  /// Toggle showing all variations (1 line vs 3 lines)
+  /// This is a major power-saving feature
+  void toggleShowAllVariations() {
+    _showAllVariations = !_showAllVariations;
+    _multiPVLines = _showAllVariations ? 3 : 1;
+
+    if (kDebugMode) {
+      debugPrint('POWER_SAVE: MultiPV toggled to $_multiPVLines lines');
+      debugPrint('POWER_SAVE: CPU load ${_showAllVariations ? "increased" : "reduced"} by ~66%');
+    }
+
+    // Restart analysis with new MultiPV setting
+    if (_state.engineReady && !_state.isInvalidPosition) {
+      _analyzePosition();
+    }
+    _notifyStateChanged();
+  }
+
   /// Updates arrow colors based on current theme
   void updateArrowsForTheme(BuildContext context) {
     Color arrowColor;
@@ -648,8 +697,10 @@ class AnalysisController {
     _notifyStateChanged();
   }
 
+  /// Pause analysis (called when app goes to background or view is hidden)
   Future<void> pauseAnalysis() async {
     try {
+      if (kDebugMode) debugPrint('POWER_SAVE: Pausing analysis');
       await _analysisSubscription?.cancel();
       if (_stockfishService.isAnalyzing) {
         await _stockfishService.stopAnalysis();
@@ -659,9 +710,49 @@ class AnalysisController {
     }
   }
 
+  /// Resume analysis (called when app returns to foreground and view is visible)
   Future<void> resumeAnalysis() async {
     if (_state.engineReady && !_state.isAnalyzing && !_state.hasError && !_state.isInvalidPosition) {
+      if (kDebugMode) debugPrint('POWER_SAVE: Resuming analysis');
       await _analyzePosition();
+    }
+  }
+
+  /// Handle app lifecycle changes
+  void onAppLifecycleChanged(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+        // App is going to background - suspend all analysis
+        _isAppInBackground = true;
+        if (kDebugMode) debugPrint('POWER_SAVE: App going to background, killing analysis');
+        pauseAnalysis();
+        break;
+      case AppLifecycleState.resumed:
+        // App is returning to foreground
+        _isAppInBackground = false;
+        if (kDebugMode) debugPrint('POWER_SAVE: App resumed to foreground');
+        if (_isAnalysisViewVisible) {
+          resumeAnalysis();
+        }
+        break;
+      case AppLifecycleState.hidden:
+        break;
+    }
+  }
+
+  /// Set visibility of analysis view
+  void setAnalysisViewVisible(bool visible) {
+    _isAnalysisViewVisible = visible;
+    if (kDebugMode) debugPrint('POWER_SAVE: Analysis view visibility: $visible');
+
+    if (visible && !_isAppInBackground) {
+      // View became visible and app is in foreground - resume analysis
+      resumeAnalysis();
+    } else if (!visible) {
+      // View is no longer visible - suspend analysis
+      pauseAnalysis();
     }
   }
 
@@ -672,16 +763,19 @@ class AnalysisController {
   Future<void> _analyzePosition() async {
     if (_disposed || !_state.engineReady || _state.isInvalidPosition) return;
 
-    final currentFen = _position?.fen ?? _state.currentFen;
-    
-    // FEN deduplication disabled for simplicity
+    // Don't start analysis if app is in background or view is not visible
+    if (_isAppInBackground || !_isAnalysisViewVisible) {
+      if (kDebugMode) debugPrint('POWER_SAVE: Skipping analysis (background=$_isAppInBackground, visible=$_isAnalysisViewVisible)');
+      return;
+    }
 
-    // Cancel any pending debounced analysis
-    _debounceTimer?.cancel();
-    
-    // Debounce rapid analysis requests
-    _debounceTimer = Timer(const Duration(milliseconds: 150), () async {
-      await _performAnalysisNow();
+    final currentFen = _position?.fen ?? _state.currentFen;
+
+    // Use FenDebouncer for power-efficient debouncing (~300ms)
+    _fenDebouncer?.debounce(() async {
+      if (!_disposed && !_isAppInBackground && _isAnalysisViewVisible) {
+        await _performAnalysisNow();
+      }
     });
   }
 
@@ -780,12 +874,15 @@ class AnalysisController {
     try {
       // Get FEN
       final currentFen = _position?.fen ?? _state.currentFen;
-      if (kDebugMode) debugPrint('ANALYSIS: Starting analysis for canonical FEN: $currentFen');
-      
+      if (kDebugMode) debugPrint('ANALYSIS: Starting analysis for canonical FEN: $currentFen (MultiPV: $_multiPVLines)');
+
       // Set the FEN being analyzed
       _lastAnalyzedFen = currentFen;
-      
-      final analysisStream = _stockfishService.startContinuousAnalysis(currentFen);
+
+      final analysisStream = _stockfishService.startContinuousAnalysis(
+        currentFen,
+        multiPVLines: _multiPVLines,
+      );
       // StockfishService increments its analysis ID when the returned stream is istened to
       final expectedStockfishId = _stockfishService.currentAnalysisId + 1;
       if (expectedStockfishId != _currentAnalysisId) {
@@ -793,23 +890,31 @@ class AnalysisController {
       }
 
 
-      _analysisSubscription = analysisStream.listen(
+      // Feed analysis stream to throttler and subscribe to throttled output
+      final rawSubscription2 = analysisStream.listen((data) {
+        if (_throttler != null && !_disposed) {
+          _throttler!.add(data);
+        }
+      });
+
+      _analysisSubscription = _throttler!.stream.listen(
         (analysisData) {
           if (_disposed) return;
-          
+
           // Double-check analysis ID to prevent processing stale data
           final analysisId = analysisData['analysisId'];
           if (analysisId != null && analysisId != _currentAnalysisId) {
             if (kDebugMode) debugPrint('ANALYSIS: Dropping stale analysis data for ID: $analysisId (current: $_currentAnalysisId)');
             return;
           }
-          
+
           try {
             _parseAnalysisData(analysisData);
             _state = _state.copyWith(hasError: false);
             _updateBestMoveHighlight();
             _updateBestMoveArrows();
-            _notifyStateChanged();
+            // Use state batcher to coalesce updates
+            _stateBatcher?.markNeedsUpdate();
           } catch (e) {
             if (!_disposed) {
               _setError('Error processing analysis: $e');
@@ -1710,18 +1815,23 @@ class AnalysisController {
   void dispose() {
     if (kDebugMode) debugPrint('DISPOSING: AnalysisController disposing...');
     _disposed = true;
-    
+
     // Cancel all timers
     _retryTimer?.cancel();
     _debounceTimer?.cancel();
-    
+
     // Cancel analysis subscription
     _analysisSubscription?.cancel();
     _analysisSubscription = null;
-    
+
+    // Dispose power-saving components
+    _throttler?.dispose();
+    _fenDebouncer?.dispose();
+    _stateBatcher?.dispose();
+
     // Thoroughly stop and reset Stockfish service
     _stopAndResetStockfish();
-    
+
     if (kDebugMode) debugPrint('AnalysisController disposed');
   }
   

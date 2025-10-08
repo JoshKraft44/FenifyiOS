@@ -3,6 +3,314 @@ import 'dart:math' as math;
 import 'package:opencv_dart/opencv_dart.dart' as cv;
 import 'debug_exporter.dart';
 
+/// Represents a line in Hough space (rho, theta parameterization)
+/// Used for robust line intersection calculations
+class Line {
+  final double rho;
+  final double theta;
+  late final double cosFactor;
+  late final double sinFactor;
+  late final (double, double) center;
+
+  Line(this.rho, this.theta) {
+    cosFactor = math.cos(theta);
+    sinFactor = math.sin(theta);
+    center = (cosFactor * rho, sinFactor * rho);
+  }
+
+  (double, double) getCenter() => center;
+  double getRho() => rho;
+  double getTheta() => theta;
+
+  /// Get line segment endpoints for drawing
+  (cv.Point, cv.Point) getSegment(double lenLeft, double lenRight) {
+    final (x0, y0) = center;
+    final x1 = (x0 + lenRight * (-sinFactor)).round();
+    final y1 = (y0 + lenRight * cosFactor).round();
+    final x2 = (x0 - lenLeft * (-sinFactor)).round();
+    final y2 = (y0 - lenLeft * cosFactor).round();
+    return (cv.Point(x1, y1), cv.Point(x2, y2));
+  }
+
+  bool isHorizontal({double thresholdAngle = math.pi / 4}) {
+    return math.sin(theta).abs() > math.cos(thresholdAngle);
+  }
+
+  bool isVertical({double thresholdAngle = math.pi / 4}) {
+    return math.cos(theta).abs() > math.cos(thresholdAngle);
+  }
+
+  /// Calculate intersection point with another line
+  (double, double)? intersect(Line other) {
+    final ct1 = math.cos(theta);
+    final st1 = math.sin(theta);
+    final ct2 = math.cos(other.theta);
+    final st2 = math.sin(other.theta);
+    final d = ct1 * st2 - st1 * ct2;
+
+    if (d.abs() < 1e-10) return null; // Parallel lines
+
+    final x = (st2 * rho - st1 * other.rho) / d;
+    final y = (-ct2 * rho + ct1 * other.rho) / d;
+    return (x, y);
+  }
+
+  void draw(cv.Mat image, cv.Scalar color, {int thickness = 2}) {
+    final (p1, p2) = getSegment(1000, 1000);
+    cv.line(image, p1, p2, color, thickness: thickness);
+  }
+
+  @override
+  String toString() => '(theta: ${(theta * 180 / math.pi).toStringAsFixed(2)}°, rho: ${rho.toStringAsFixed(0)})';
+}
+
+/// Partition lines into horizontal and vertical sets, sorted by position
+(List<Line>, List<Line>) partitionLines(List<Line> lines) {
+  final horizontal = lines.where((l) => l.isHorizontal()).toList();
+  final vertical = lines.where((l) => l.isVertical()).toList();
+
+  // Sort horizontal by y-position (center.y)
+  horizontal.sort((a, b) => a.center.$2.compareTo(b.center.$2));
+
+  // Sort vertical by x-position (center.x)
+  vertical.sort((a, b) => a.center.$1.compareTo(b.center.$1));
+
+  return (horizontal, vertical);
+}
+
+/// Filter out lines that are too close together (keeps middle line of cluster)
+List<Line> filterCloseLines(List<Line> lines, {required bool horizontal, required double threshold}) {
+  if (lines.isEmpty) return [];
+
+  final result = <Line>[];
+  int i = 0;
+
+  while (i < lines.length) {
+    final startIdx = i;
+    final startPos = horizontal ? lines[i].center.$2 : lines[i].center.$1;
+
+    // Find all lines within threshold
+    while (i < lines.length) {
+      final currentPos = horizontal ? lines[i].center.$2 : lines[i].center.$1;
+      if ((currentPos - startPos).abs() >= threshold) break;
+      i++;
+    }
+
+    // Take middle line from cluster
+    final midIdx = startIdx + ((i - startIdx) ~/ 2);
+    result.add(lines[midIdx]);
+  }
+
+  return result;
+}
+
+/// Get perspective transform points from a contour by finding the bounding rectangle
+/// Simplified version that uses the contour's bounding polygon
+(cv.Point, cv.Point, cv.Point, cv.Point)? getPerspectiveFromContour(cv.VecPoint contour) {
+  try {
+    // Approximate the contour to a polygon
+    final epsilon = cv.arcLength(contour, true) * 0.02;
+    final approx = cv.approxPolyDP(contour, epsilon, true);
+
+    // Look for 4-6 vertices (roughly rectangular)
+    if (approx.length >= 4 && approx.length <= 6) {
+      final rect = cv.boundingRect(contour);
+
+      // Return the 4 corners of the bounding rectangle
+      return (
+        cv.Point(rect.x, rect.y),
+        cv.Point(rect.x + rect.width, rect.y),
+        cv.Point(rect.x + rect.width, rect.y + rect.height),
+        cv.Point(rect.x, rect.y + rect.height),
+      );
+    }
+
+    return null;
+  } catch (e) {
+    print('[OpenCV] getPerspectiveFromContour error: $e');
+    return null;
+  }
+}
+
+/// Extract and warp a perspective-transformed region from an image
+/// Simplified version using ROI extraction
+cv.Mat? extractPerspective(
+  cv.Mat image,
+  (cv.Point, cv.Point, cv.Point, cv.Point)? perspective,
+  int width,
+  int height,
+) {
+  try {
+    if (perspective == null) {
+      // No perspective provided, just resize whole image
+      return cv.resize(image, (width, height));
+    }
+
+    // Extract bounding rectangle from perspective points
+    final (p1, p2, p3, p4) = perspective;
+
+    // Find min/max x and y coordinates
+    final minX = [p1.x, p2.x, p3.x, p4.x].reduce(math.min).clamp(0, image.cols);
+    final maxX = [p1.x, p2.x, p3.x, p4.x].reduce(math.max).clamp(0, image.cols);
+    final minY = [p1.y, p2.y, p3.y, p4.y].reduce(math.min).clamp(0, image.rows);
+    final maxY = [p1.y, p2.y, p3.y, p4.y].reduce(math.max).clamp(0, image.rows);
+
+    final rect = cv.Rect(minX, minY, maxX - minX, maxY - minY);
+
+    // Extract ROI and resize
+    final roi = image.region(rect);
+    return cv.resize(roi, (width, height));
+  } catch (e) {
+    print('[OpenCV] extractPerspective error: $e');
+    return null;
+  }
+}
+
+/// Extract grid lines from a board image
+/// Returns (horizontal, vertical) line lists or null if grid not found
+(List<Line>, List<Line>)? extractGrid(
+  cv.Mat image, {
+  int nVertical = 9,
+  int nHorizontal = 9,
+  int threshold1 = 50,
+  int threshold2 = 150,
+  int apertureSize = 3,
+  int houghThresholdStep = 20,
+  int houghThresholdMin = 50,
+  int houghThresholdMax = 150,
+}) {
+  try {
+    final h = image.rows;
+    final w = image.cols;
+    final closeThresholdV = (w / nVertical) / 4;
+    final closeThresholdH = (h / nHorizontal) / 4;
+
+    final gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY);
+    final (_, bw) = cv.threshold(gray, 128, 255, cv.THRESH_BINARY | cv.THRESH_OTSU);
+    final edges = cv.canny(bw, threshold1.toDouble(), threshold2.toDouble(), apertureSize: apertureSize);
+
+    for (int i = 0; i < (houghThresholdMax - houghThresholdMin + 1) ~/ houghThresholdStep; i++) {
+      final threshold = houghThresholdMax - (houghThresholdStep * i);
+      final linesRaw = cv.HoughLines(edges, 1, math.pi / 180, threshold);
+
+      if (linesRaw.isEmpty) continue;
+
+      final lines = <Line>[];
+      for (int j = 0; j < linesRaw.rows; j++) {
+        final row = linesRaw.row(j);
+        final rho = row.at<double>(0, 0);
+        final theta = row.at<double>(0, 1);
+        lines.add(Line(rho, theta));
+      }
+
+      final (horizontal, vertical) = partitionLines(lines);
+      final filteredV = filterCloseLines(vertical, horizontal: false, threshold: closeThresholdV);
+      final filteredH = filterCloseLines(horizontal, horizontal: true, threshold: closeThresholdH);
+
+      if (filteredV.length >= nVertical && filteredH.length >= nHorizontal) {
+        return (filteredH, filteredV);
+      }
+    }
+
+    return null;
+  } catch (e) {
+    print('[OpenCV] extractGrid error: $e');
+    return null;
+  }
+}
+
+/// Extract 64 individual tile images from a board using grid lines
+/// Returns list of ((x, y), tileImage) tuples
+List<((int, int), cv.Mat)> extractTiles(
+  cv.Mat image,
+  (List<Line>, List<Line>) grid,
+  int tileWidth,
+  int tileHeight,
+) {
+  final result = <((int, int), cv.Mat)>[];
+  final (horizontal, vertical) = grid;
+
+  try {
+    for (int x = 0; x < 8; x++) {
+      final v1 = vertical[x];
+      final v2 = vertical[x + 1];
+
+      for (int y = 0; y < 8; y++) {
+        final h1 = horizontal[y];
+        final h2 = horizontal[y + 1];
+
+        // Calculate 4 corners of this tile
+        final topLeft = h1.intersect(v1);
+        final topRight = h1.intersect(v2);
+        final bottomRight = h2.intersect(v2);
+        final bottomLeft = h2.intersect(v1);
+
+        if (topLeft != null && topRight != null && bottomRight != null && bottomLeft != null) {
+          final perspective = (
+            cv.Point(topLeft.$1.round(), topLeft.$2.round()),
+            cv.Point(topRight.$1.round(), topRight.$2.round()),
+            cv.Point(bottomRight.$1.round(), bottomRight.$2.round()),
+            cv.Point(bottomLeft.$1.round(), bottomLeft.$2.round()),
+          );
+
+          final tile = extractPerspective(image, perspective, tileWidth, tileHeight);
+          if (tile != null) {
+            result.add(((x, y), tile));
+          }
+        }
+      }
+    }
+  } catch (e) {
+    print('[OpenCV] extractTiles error: $e');
+  }
+
+  return result;
+}
+
+/// Filter contours based on size, shape, and hierarchy
+/// Returns list of valid contour indices
+List<int> filterContoursByHierarchy(
+  cv.Mat image,
+  cv.Contours contours,
+  cv.VecVec4i hierarchy, {
+  double minRatioBounding = 0.6,
+  double minAreaPercentage = 0.01,
+  double maxAreaPercentage = 0.40,
+}) {
+  final result = <int>[];
+  final imageArea = image.rows * image.cols;
+
+  for (int i = 0; i < contours.length; i++) {
+    final contour = contours[i];
+
+    // Check hierarchy - only top-level contours (no parent)
+    if (hierarchy.length > 0 && i < hierarchy.length) {
+      final hierarchyVec = hierarchy[i];
+      // Vec4i has: [next, previous, first_child, parent]
+      // Skip if this contour has a child (not a leaf)
+      final hasChild = hierarchyVec.val3 != -1;
+      if (hasChild) continue;
+    }
+
+    // Check bounding box ratio
+    final rect = cv.boundingRect(contour);
+    final boundingArea = rect.width * rect.height;
+    final contourArea = cv.contourArea(contour);
+
+    if (boundingArea == 0) continue;
+    final ratioBounding = contourArea / boundingArea;
+    if (ratioBounding < minRatioBounding) continue;
+
+    // Check area percentage
+    final areaRatio = contourArea / imageArea;
+    if (areaRatio < minAreaPercentage || areaRatio > maxAreaPercentage) continue;
+
+    result.add(i);
+  }
+
+  return result;
+}
+
 /// Enhanced chess board detection using OpenCV computer vision library.
 class OpenCVBoardDetector {
   /// Detects and crops a chess board from the input image using advanced computer vision techniques.
@@ -20,37 +328,173 @@ class OpenCVBoardDetector {
       
       print('[OpenCV] Image size: ${srcMat.cols}x${srcMat.rows}');
       
-      // Simple approach: find the largest square-ish region (chess boards are squares)
-      final (squareResult, detectedBounds) = await _detectLargestSquareWithBounds(srcMat);
-      if (squareResult != null && detectedBounds != null) {
-        print('[OpenCV] Square detection successful');
+      // Try multiple detection strategies, from most robust to fallback
 
-        // Export original image with detected square outline
-        final originalWithOutline = _drawSquareOutlineOnOriginal(srcMat, detectedBounds);
-        final outlineBytes = _matToBytes(originalWithOutline);
-        DebugExporter.exportBytes(outlineBytes, name: 'opencv_original_with_outline_${DateTime.now().millisecondsSinceEpoch}.png');
-
-        final resized = cv.resize(squareResult, (512, 512));
-
-        // Create overlay with 8x8 grid lines on the final result
-        final overlayResult = _createSquareGridOverlay(resized);
-        final bytes = _matToBytes(overlayResult);
-        DebugExporter.exportBytes(bytes, name: 'opencv_square_with_grid_${DateTime.now().millisecondsSinceEpoch}.png');
-
-        // Also export the clean version without overlay
-        final cleanBytes = _matToBytes(resized);
-        DebugExporter.exportBytes(cleanBytes, name: 'opencv_square_clean_${DateTime.now().millisecondsSinceEpoch}.png');
-
-        return cleanBytes;
+      // Strategy 1: Python pipeline approach - contour + perspective + grid extraction
+      print('[OpenCV] Trying Strategy 1: Contour-based perspective detection');
+      final strategy1Result = await _detectUsingContourPerspective(srcMat);
+      if (strategy1Result != null) {
+        print('[OpenCV] Strategy 1 successful');
+        return _finalizeDetection(srcMat, strategy1Result, 'strategy1');
       }
 
-      print('[OpenCV] No 8x8 board detected; returning null');
+      // Strategy 2: Current approach - largest square detection
+      print('[OpenCV] Trying Strategy 2: Largest square detection');
+      final (squareResult, detectedBounds) = await _detectLargestSquareWithBounds(srcMat);
+      if (squareResult != null && detectedBounds != null) {
+        print('[OpenCV] Strategy 2 successful');
+        return _finalizeDetection(srcMat, squareResult, 'strategy2', bounds: detectedBounds);
+      }
+
+      print('[OpenCV] No 8x8 board detected with any strategy; returning null');
       return null;
       
     } catch (e) {
       print('[OpenCV] Exception: $e');
       return null; // Return null to use original image
     }
+  }
+
+  /// Strategy 1: Detect board using contour-based perspective detection (Python pipeline approach)
+  static Future<cv.Mat?> _detectUsingContourPerspective(cv.Mat srcMat) async {
+    try {
+      // Convert to grayscale and threshold
+      final gray = cv.cvtColor(srcMat, cv.COLOR_BGR2GRAY);
+      final (_, bw) = cv.threshold(gray, 128, 255, cv.THRESH_BINARY | cv.THRESH_OTSU);
+
+      // Find contours - try multiple methods
+      final (contours, hierarchy) = cv.findContours(bw, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+      if (contours.isEmpty) {
+        print('[OpenCV] Strategy 1: No contours found');
+        return null;
+      }
+
+      print('[OpenCV] Strategy 1: Found ${contours.length} contours, filtering...');
+
+      // IMPROVED FILTERING: Very lenient for real-world chess boards
+      final validIndices = <int>[];
+      final imageArea = srcMat.rows * srcMat.cols;
+
+      for (int i = 0; i < contours.length; i++) {
+        final contour = contours[i];
+        final area = cv.contourArea(contour);
+        final areaRatio = area / imageArea;
+
+        // Accept very wide range: 3% to 98% of image
+        // (boards can be small in frame or fill entire image)
+        if (areaRatio >= 0.03 && areaRatio <= 0.98) {
+          final rect = cv.boundingRect(contour);
+          final aspectRatio = rect.width / rect.height.toDouble();
+
+          // Very lenient aspect ratio for chess boards (0.6 to 1.6)
+          if (aspectRatio >= 0.6 && aspectRatio <= 1.6) {
+            validIndices.add(i);
+          }
+        }
+      }
+
+      print('[OpenCV] Strategy 1: Found ${validIndices.length} valid square-ish contours');
+
+      // Sort by area (largest first) - boards are usually prominent
+      validIndices.sort((a, b) {
+        final areaA = cv.contourArea(contours[a]);
+        final areaB = cv.contourArea(contours[b]);
+        return areaB.compareTo(areaA);
+      });
+
+      // Try all valid candidates thoroughly
+      for (final idx in validIndices) {
+        final contour = contours[idx];
+        final area = cv.contourArea(contour);
+        final areaRatio = area / imageArea;
+
+        print('[OpenCV] Strategy 1: Trying contour $idx (area: ${(areaRatio * 100).toStringAsFixed(1)}%)');
+
+        // Get perspective transform from contour
+        final perspective = getPerspectiveFromContour(contour);
+        if (perspective == null) {
+          print('[OpenCV] Strategy 1: No perspective for contour $idx');
+          continue;
+        }
+
+        // Extract the board using perspective transform
+        final board = extractPerspective(srcMat, perspective, 512, 512);
+        if (board == null) {
+          print('[OpenCV] Strategy 1: Extract failed for contour $idx');
+          continue;
+        }
+
+        // Validate: Check if it looks like a chess board
+        if (_quickBoardValidation(board)) {
+          print('[OpenCV] Strategy 1: ✓ Valid board detected at contour $idx');
+          return board;
+        } else {
+          print('[OpenCV] Strategy 1: Board validation failed for contour $idx');
+        }
+      }
+
+      print('[OpenCV] Strategy 1: No valid board found after trying ${validIndices.length} candidates');
+      return null;
+    } catch (e) {
+      print('[OpenCV] Strategy 1 error: $e');
+      return null;
+    }
+  }
+
+  /// Quick validation - checks if extracted region looks like a chess board
+  static bool _quickBoardValidation(cv.Mat board) {
+    try {
+      // 1. Check aspect ratio (must be square-ish)
+      final aspect = board.cols / board.rows;
+      if (aspect < 0.85 || aspect > 1.15) {
+        print('[OpenCV] Validation failed: aspect ratio $aspect');
+        return false;
+      }
+
+      // 2. Check for reasonable contrast (chess boards have alternating light/dark squares)
+      final gray = cv.cvtColor(board, cv.COLOR_BGR2GRAY);
+
+      // Calculate standard deviation of pixel intensities
+      final (mean, stdDev) = cv.meanStdDev(gray);
+      final std = stdDev.val1; // Get first channel stddev
+
+      // Chess boards should have good contrast (stddev > 25)
+      // Lower threshold for varied lighting conditions
+      if (std < 25) {
+        print('[OpenCV] Validation failed: low contrast (std: ${std.toStringAsFixed(1)})');
+        return false;
+      }
+
+      print('[OpenCV] Validation passed: aspect=${aspect.toStringAsFixed(2)}, std=${std.toStringAsFixed(1)}');
+      return true;
+    } catch (e) {
+      print('[OpenCV] Validation error: $e');
+      return false;
+    }
+  }
+
+  /// Finalize detection by resizing and exporting debug images
+  static Uint8List _finalizeDetection(cv.Mat srcMat, cv.Mat detectedBoard, String strategy, {cv.Rect? bounds}) {
+    // Export original image with detected square outline if bounds provided
+    if (bounds != null) {
+      final originalWithOutline = _drawSquareOutlineOnOriginal(srcMat, bounds);
+      final outlineBytes = _matToBytes(originalWithOutline);
+      DebugExporter.exportBytes(outlineBytes, name: 'opencv_original_with_outline_${strategy}_${DateTime.now().millisecondsSinceEpoch}.png');
+    }
+
+    final resized = cv.resize(detectedBoard, (512, 512));
+
+    // Create overlay with 8x8 grid lines on the final result
+    final overlayResult = _createSquareGridOverlay(resized);
+    final bytes = _matToBytes(overlayResult);
+    DebugExporter.exportBytes(bytes, name: 'opencv_square_with_grid_${strategy}_${DateTime.now().millisecondsSinceEpoch}.png');
+
+    // Also export the clean version without overlay
+    final cleanBytes = _matToBytes(resized);
+    DebugExporter.exportBytes(cleanBytes, name: 'opencv_square_clean_${strategy}_${DateTime.now().millisecondsSinceEpoch}.png');
+
+    return cleanBytes;
   }
 
   /// Validates that a candidate crop shows exactly an 8x8 chessboard grid.
@@ -495,40 +939,43 @@ class OpenCVBoardDetector {
       }
 
       if (candidates.isEmpty) {
-        print('[OpenCV] No suitable square candidates found, trying with relaxed criteria');
+        print('[OpenCV] No suitable square candidates found, trying with VERY relaxed criteria');
 
-        // Try again with more relaxed criteria for difficult cases
+        // VERY relaxed criteria - just look for anything square-ish
         for (int i = 0; i < contours.length; i++) {
           final contour = contours[i];
-          final epsilon = cv.arcLength(contour, true) * 0.02;
-          final approx = cv.approxPolyDP(contour, epsilon, true);
+          final rect = cv.boundingRect(contour);
+          final aspectRatio = rect.width / rect.height.toDouble();
 
-          if (approx.length >= 4 && approx.length <= 8) { // More flexible vertex count
-            final rect = cv.boundingRect(contour);
-            final aspectRatio = rect.width / rect.height.toDouble();
+          // Very lenient: 0.6 to 1.6 aspect ratio (same as Strategy 1)
+          if (aspectRatio >= 0.6 && aspectRatio <= 1.6) {
+            final area = rect.width * rect.height;
+            final imageArea = srcMat.cols * srcMat.rows;
+            final sizeScore = area / imageArea.toDouble();
 
-            // More flexible aspect ratio and smaller minimum size
-            if (aspectRatio >= 0.5 && aspectRatio <= 2.0) {
-              final area = rect.width * rect.height;
-              final imageArea = srcMat.cols * srcMat.rows;
-              final sizeScore = area / imageArea.toDouble();
+            // Accept even tiny boards (1% of image)
+            if (sizeScore >= 0.01 && sizeScore <= 0.99) {
+              // Check for chess-like contrast
+              final roi = srcMat.region(rect);
+              final gray = cv.cvtColor(roi, cv.COLOR_BGR2GRAY);
 
-              // Much smaller minimum (2% of image)
-              if (sizeScore > 0.02) {
-                final chessScore = _validateChessBoardPattern(srcMat, rect);
+              final (_, stdDev) = cv.meanStdDev(gray);
+              final std = stdDev.val1; // Get first channel stddev
 
-                // Only add if it has some chess-like properties
-                if (chessScore > 0.1) {
-                  candidates.add((rect: rect, score: sizeScore * 0.5 + chessScore * 0.5));
-                  print('[OpenCV] Relaxed candidate: ${rect.width}x${rect.height} at (${rect.x},${rect.y}) size=${(sizeScore*100).toStringAsFixed(1)}% chess=${chessScore.toStringAsFixed(2)}');
-                }
+              // Chess boards need some contrast (stddev > 20)
+              if (std > 20) {
+                final contrastScore = (std / 128.0).clamp(0.0, 1.0); // Normalize
+                final finalScore = sizeScore * 0.4 + contrastScore * 0.6;
+
+                candidates.add((rect: rect, score: finalScore));
+                print('[OpenCV] Relaxed candidate: ${rect.width}x${rect.height} size=${(sizeScore*100).toStringAsFixed(1)}% std=${std.toStringAsFixed(1)} score=${finalScore.toStringAsFixed(3)}');
               }
             }
           }
         }
 
         if (candidates.isEmpty) {
-          print('[OpenCV] Still no candidates found even with relaxed criteria');
+          print('[OpenCV] Still no candidates found even with very relaxed criteria');
           return (null, null);
         }
       }
@@ -1057,5 +1504,47 @@ class OpenCVBoardDetector {
   /// Convert OpenCV Mat to bytes
   static Uint8List _matToBytes(cv.Mat mat) {
     return cv.imencode('.png', mat).$2;
+  }
+
+  /// Extract individual 64 tiles from a detected board for debugging/training
+  /// Returns list of tile images with their coordinates
+  static Future<List<((int, int), Uint8List)>?> extractBoardTiles(Uint8List imageBytes, {int tileSize = 100}) async {
+    try {
+      print('[OpenCV] Starting tile extraction');
+
+      // Decode image
+      final srcMat = cv.imdecode(imageBytes, cv.IMREAD_COLOR);
+      if (srcMat.isEmpty) return null;
+
+      // First detect the board using strategy 1 (more reliable for grid extraction)
+      final board = await _detectUsingContourPerspective(srcMat);
+      if (board == null) {
+        print('[OpenCV] Board detection failed for tile extraction');
+        return null;
+      }
+
+      // Extract grid
+      final grid = extractGrid(board, nVertical: 9, nHorizontal: 9);
+      if (grid == null) {
+        print('[OpenCV] Grid extraction failed');
+        return null;
+      }
+
+      // Extract tiles
+      final tiles = extractTiles(board, grid, tileSize, tileSize);
+      print('[OpenCV] Extracted ${tiles.length} tiles');
+
+      // Convert to bytes
+      final result = <((int, int), Uint8List)>[];
+      for (final ((x, y), tileMat) in tiles) {
+        final tileBytes = _matToBytes(tileMat);
+        result.add(((x, y), tileBytes));
+      }
+
+      return result;
+    } catch (e) {
+      print('[OpenCV] Tile extraction error: $e');
+      return null;
+    }
   }
 }

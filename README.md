@@ -1,24 +1,22 @@
 # Fenify
+# Created by Joshua Thomas Kraft
 
-# Created by Joshua Thomas Kraft - May 17 2025
-
-**Fenify** is a powerful offline mobile chess analysis app that uses computer vision to convert digital chess board photos into interactive positions for deep analysis with the Stockfish engine. 
+**Fenify** is a mobile chess analysis app that uses computer vision to convert digital chess board photos into interactive positions for analysis with the Stockfish engine. 
 
 ---
 
 ## Key Features
 
 ### **Advanced Image Processing**
-- **Smart Board Detection**: Automatically detects and corrects chessboard perspective using sophisticated computer vision algorithms
-- **Intelligent Cropping**: Advanced cropping algorithms that find optimal board boundaries
-- **Real-time Processing**: Upload photos from camera or gallery for instant analysis
-- **Debug Mode**: Extract individual squares for detailed inspection and troubleshooting
+- **Board Detection**: Automatically detects and corrects chessboard perspective using computer vision
+- **Real-time & On-Devce Processing**: Upload photos from camera or gallery for instant analysis
+- **Debug Mode**: Extract individual square image crops for detailed inspection and troubleshooting
 
-### **AI-Powered Piece Recognition**
-- **Custom TensorFlow Lite Model**: On-device piece classification with 13 classes (6 black pieces, 6 white pieces, + empty squares)
+### **ML-Powered Piece Recognition**
+- **Custom TensorFlow Lite Model**: On-device piece classification
 - **High Accuracy**: Trained model specifically optimized for chess piece detection
 - **Offline Inference**: No internet required - all ML processing happens locally
-- **Auto-Orientation**: Automatically detects correct board orientation for accurate analysis
+- **Auto-Orientation**: Interprets orientation to avoid consistent board flipping
 
 ### **Professional Chess Analysis**
 - **Stockfish Integration**: Full Stockfish 17 engine running in isolated threads for maximum performance
@@ -29,10 +27,10 @@
 
 ### **Interactive Position Editing**
 - **Visual Board Editor**: Tap-and-drop piece placement with intuitive controls
-- **Multiple Edit Modes**: Tap & Replace, place new pieces, or remove pieces
+- **Multiple Edit Modes**: Tap-to-Replace, place new pieces, or remove pieces
 - **Castling Rights**: Full control over castling availability for both sides
 - **Turn Selection**: Choose which side to move
-- **Smart Validation**: Real-time position validation while editing with helpful error messages
+- **Smart Validation**: Position validation before saving with descriptive error messages
 
 ### **Position Management**
 - **Save Positions**: Store analyzed positions for later review
@@ -77,7 +75,7 @@ flutter build ios --release
 
 ### **1. Image Capture & Processing**
 - User uploads chess position photo from camera or gallery
-- Advanced board detection algorithms locate and correct chessboard perspective
+- Board detection algorithms locate and correct chessboard perspective
 - Image is automatically oriented and cropped for optimal square extraction
 
 ### **2. AI Piece Recognition**
@@ -97,29 +95,9 @@ flutter build ios --release
 
 ---
 
-## Design Philosophy
-
-Fenify combines computer vision with professional chess analysis tools, wrapped in an intuitive mobile interface. The app prioritizes:
-
-- **Offline Functionality**: Complete independence from internet connectivity
-- **Performance**: Optimized ML models and efficient engine integration
-- **Usability**: Clean, modern interface with professional chess features
-- **Reliability**: Comprehensive error handling and validation throughout
-
----
-
 ## Supported Platforms
 
 - **iOS**: iOS 11.0+
-
----
-
-## Acknowledgments
-
-- **Stockfish Team**: For the incredible chess engine
-- **TensorFlow Team**: For the machine learning framework
-- **Flutter Community**: For the amazing cross-platform framework
-- **Chess.com & Lichess**: For inspiration and the wonderful dartchess package. 
 
 ## Outlook
 
