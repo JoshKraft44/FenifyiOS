@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/home_screen.dart';
+import 'utils/debug_helper.dart';
 
 // Application entry point
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Print debug folder path in debug mode
+  if (kDebugMode) {
+    await DebugHelper.printDebugPath();
+  }
+
   runApp(const ChessAnalyzerApp());
 }
 

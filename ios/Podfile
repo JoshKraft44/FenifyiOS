@@ -35,8 +35,6 @@ target 'Runner' do
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   pod 'TensorFlowLiteSwift', '~> 2.12.0'
-  # Exclude LibTorch for simulator builds due to architecture conflicts
-  pod 'LibTorch-Lite', '~> 1.13.0', :configurations => ['Debug', 'Release']
 
   target 'RunnerTests' do
     inherit! :search_paths

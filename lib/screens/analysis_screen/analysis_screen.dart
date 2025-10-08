@@ -60,11 +60,8 @@ class _AnalysisScreenState extends State<AnalysisScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.paused) {
-      _analysisController.pauseAnalysis();
-    } else if (state == AppLifecycleState.resumed) {
-      _analysisController.resumeAnalysis();
-    }
+    // Delegate to controller's improved lifecycle handling
+    _analysisController.onAppLifecycleChanged(state);
   }
 
   @override
