@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io' as io;
 import '../constants/app_colors.dart';
-import '../constants/app_dimensions.dart';
 import '../providers/theme_provider.dart';
 import '../screens/analysis_screen/analysis_screen.dart';
 import '../screens/image_processing_screen.dart';
@@ -22,7 +21,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   io.File? _image;
-  bool _isProcessing = false;
+  final bool _isProcessing = false;
   final TextEditingController _fenController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final ImageProcessor _imageProcessor = ImageProcessor();
@@ -81,7 +80,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (kDebugMode) {
         // Update to Mac current LAN IP
         // ipconfig getifaddr en0
-        ImageProcessor.debugExportBaseUrl = 'http://192.168.2.237:8787';
+        ImageProcessor.debugExportBaseUrl = 'http://192.168.1.71:8787';
       }
       
       // Initialize 2D image processor
@@ -134,8 +133,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(24),
+              const Padding(
+                padding: EdgeInsets.all(24),
                 child: Text(
                   'Upload Chess Position',
                   style: TextStyle(
@@ -156,8 +155,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       Navigator.pop(context);
                       _pickFromGallery();
                     },
-                    icon: Icon(Icons.photo_library_rounded, color: AppColors.deepNavy),
-                    label: Text(
+                    icon: const Icon(Icons.photo_library_rounded, color: AppColors.deepNavy),
+                    label: const Text(
                       'Choose from Gallery',
                       style: TextStyle(
                         color: AppColors.deepNavy,
@@ -285,7 +284,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(color: AppColors.columbiaBlue, width: 2),
+                            borderSide: const BorderSide(color: AppColors.columbiaBlue, width: 2),
                           ),
                           prefixIcon: Icon(Icons.edit_note, color: context.secondaryTextColor),
                           hintText: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',

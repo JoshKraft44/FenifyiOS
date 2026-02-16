@@ -1,5 +1,5 @@
 // Minimal debug crop HTTP server with port fallback.
-// Usage:
+
 //   dart tools/debug_crop_server.dart --port 8787 --dir /path/to/save [--host 0.0.0.0]
 //   dart tools/debug_crop_server.dart --port 0   (let OS choose a free port)
 

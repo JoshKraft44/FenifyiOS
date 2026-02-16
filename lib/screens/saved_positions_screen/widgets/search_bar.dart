@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import '../controllers/saved_positions_controller.dart';
-import '../../../constants/app_colors.dart';
-import '../../../constants/app_dimensions.dart';
 import '../../../providers/theme_provider.dart';
 
 class SavedPositionsSearchBar extends StatelessWidget {

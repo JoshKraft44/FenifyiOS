@@ -40,7 +40,7 @@ class PromotionWidget extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Expanded(
+              const Expanded(
                 child: Text(
                   'Pawn promotion - select piece:',
                   style: TextStyle(
@@ -90,7 +90,7 @@ class PromotionWidget extends StatelessWidget {
           children: [
             Text(
               symbol,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: AppColors.deepNavy,
@@ -98,7 +98,7 @@ class PromotionWidget extends StatelessWidget {
             ),
             Text(
               name,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 8,
                 color: AppColors.cadetGray,
                 fontWeight: FontWeight.w500,

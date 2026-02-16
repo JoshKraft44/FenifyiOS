@@ -16,7 +16,7 @@ void main() {
   group('Usability Tests', () {
     testWidgets('user can discover main features easily', (WidgetTester tester) async {
       await tester.pumpWidget(
-        WidgetTestHelpers.wrapInMaterialApp(HomeScreen()),
+        WidgetTestHelpers.wrapInMaterialApp(const HomeScreen()),
       );
       
       // Main features should be prominently displayed
@@ -33,7 +33,7 @@ void main() {
     testWidgets('error messages are clear and helpful', (WidgetTester tester) async {
       await tester.pumpWidget(
         WidgetTestHelpers.wrapInMaterialApp(
-          ChessBoardWidget(fen: TestPositions.invalidNoKings),
+          const ChessBoardWidget(fen: TestPositions.invalidNoKings),
         ),
       );
       
@@ -47,7 +47,7 @@ void main() {
     testWidgets('navigation is intuitive', (WidgetTester tester) async {
       await tester.pumpWidget(
         WidgetTestHelpers.wrapInMaterialApp(
-          AnalysisScreen(fen: TestPositions.startingPosition),
+          const AnalysisScreen(fen: TestPositions.startingPosition),
         ),
       );
       
@@ -63,7 +63,7 @@ void main() {
     testWidgets('user feedback is immediate', (WidgetTester tester) async {
       await tester.pumpWidget(
         WidgetTestHelpers.wrapInMaterialApp(
-          AnalysisScreen(fen: TestPositions.startingPosition),
+          const AnalysisScreen(fen: TestPositions.startingPosition),
         ),
       );
       
@@ -74,7 +74,7 @@ void main() {
       await tester.tap(flipButton);
       
       // Should provide immediate visual feedback
-      await tester.pump(Duration(milliseconds: 16)); // Single frame
+      await tester.pump(const Duration(milliseconds: 16)); // Single frame
       
       // Visual change should be immediate (specific assertion depends on implementation)
       expect(find.byType(ChessBoardWidget), findsOneWidget);
@@ -82,7 +82,7 @@ void main() {
 
     testWidgets('complex workflows are guided', (WidgetTester tester) async {
       await tester.pumpWidget(
-        WidgetTestHelpers.wrapInMaterialApp(HomeScreen()),
+        WidgetTestHelpers.wrapInMaterialApp(const HomeScreen()),
       );
       
       // Navigate to position editor

@@ -72,7 +72,7 @@ class TestSetup {
   }
   
   static void printTestSummary() {
-    print('\n' + '='*70);
+    print('\n${'='*70}');
     print('TEST SUITE EXECUTION COMPLETE');
     print('='*70);
     print('OK Services: DartChess validation, Stockfish integration, Storage');

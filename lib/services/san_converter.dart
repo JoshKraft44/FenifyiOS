@@ -19,17 +19,14 @@ class SanConverter {
 
       // Parse the current position
       final setup = Setup.parseFen(currentFen);
-      if (setup == null) {
-        if (kDebugMode) debugPrint('Invalid FEN for SAN conversion: $currentFen');
-        return uciMove;
-      }
 
       final position = Position.setupPosition(Rule.chess, setup);
-      
+
       // Parse the UCI move
       final fromSquare = Square.fromName(uciMove.substring(0, 2));
       final toSquare = Square.fromName(uciMove.substring(2, 4));
-      final promotion = uciMove.length > 4 ? Role.fromChar(uciMove.substring(4, 5)) : null;
+      final promotion =
+          uciMove.length > 4 ? Role.fromChar(uciMove.substring(4, 5)) : null;
 
       // Create the move
       Move move;
@@ -48,7 +45,9 @@ class SanConverter {
       final sanResult = position.makeSan(move);
       return sanResult.$2;
     } catch (e) {
-      if (kDebugMode) debugPrint('Error converting UCI to SAN: $uciMove, error: $e');
+      if (kDebugMode) {
+        debugPrint('Error converting UCI to SAN: $uciMove, error: $e');
+      }
       return uciMove; // Fallback to UCI notation
     }
   }
@@ -64,10 +63,6 @@ class SanConverter {
 
       // Parse initial position
       var setup = Setup.parseFen(currentFen);
-      if (setup == null) {
-        if (kDebugMode) debugPrint('Invalid starting FEN for SAN conversion: $startingFen');
-        return uciMoves; // Return UCI moves as fallback
-      }
 
       var position = Position.setupPosition(Rule.chess, setup);
 
@@ -81,12 +76,15 @@ class SanConverter {
           // Parse the UCI move
           final fromSquare = Square.fromName(uciMove.substring(0, 2));
           final toSquare = Square.fromName(uciMove.substring(2, 4));
-          final promotion = uciMove.length > 4 ? Role.fromChar(uciMove.substring(4, 5)) : null;
+          final promotion = uciMove.length > 4
+              ? Role.fromChar(uciMove.substring(4, 5))
+              : null;
 
           // Create the move
           Move move;
           if (promotion != null) {
-            move = NormalMove(from: fromSquare, to: toSquare, promotion: promotion);
+            move = NormalMove(
+                from: fromSquare, to: toSquare, promotion: promotion);
           } else {
             move = NormalMove(from: fromSquare, to: toSquare);
           }
@@ -105,16 +103,15 @@ class SanConverter {
 
           // Make the move and update position for next iteration
           position = sanResult.$1;
-
         } catch (e) {
-          if (kDebugMode)
+          if (kDebugMode) {
             debugPrint('Error converting move $uciMove to SAN: $e');
+          }
           sanMoves.add(uciMove); // Fallback to UCI
         }
       }
 
       return sanMoves;
-
     } catch (e) {
       if (kDebugMode) debugPrint('Error converting UCI list to SAN: $e');
       return uciMoves; // Fallback to UCI moves
@@ -128,7 +125,6 @@ class SanConverter {
       if (uciMove.isEmpty) return '';
 
       final setup = Setup.parseFen(currentFen);
-      if (setup == null) return uciMove;
 
       final sanMove = uciToSan(uciMove, currentFen);
       final fullmoveNumber = setup.fullmoves;
@@ -139,7 +135,6 @@ class SanConverter {
       } else {
         return '$fullmoveNumber...$sanMove';
       }
-
     } catch (e) {
       if (kDebugMode) debugPrint('Error formatting best move with number: $e');
       return uciMove;
@@ -148,14 +143,15 @@ class SanConverter {
 
   /// Format a principal variation with proper move numbering
   /// Example: "1. e4 e5 2. Nf3 Nc6 3. Bb5"
-  String formatPrincipalVariation(List<String> uciMoves, String startingFen, {int maxMoves = 10}) {
+  String formatPrincipalVariation(List<String> uciMoves, String startingFen,
+      {int maxMoves = 10}) {
     if (uciMoves.isEmpty) return '';
 
     try {
       final setup = Setup.parseFen(startingFen);
-      if (setup == null) return uciMoves.join(' ');
 
-      final sanMoves = uciListToSan(uciMoves.take(maxMoves).toList(), startingFen);
+      final sanMoves =
+          uciListToSan(uciMoves.take(maxMoves).toList(), startingFen);
       if (sanMoves.isEmpty) return '';
 
       final formatted = <String>[];
@@ -183,7 +179,6 @@ class SanConverter {
       }
 
       return formatted.join(' ');
-
     } catch (e) {
       if (kDebugMode) debugPrint('Error formatting principal variation: $e');
       return uciMoves.take(maxMoves).join(' ');

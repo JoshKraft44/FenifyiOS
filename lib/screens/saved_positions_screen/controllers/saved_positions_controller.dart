@@ -5,7 +5,6 @@ import '../../../models/chess_position.dart';
 import '../../../services/storage_service.dart';
 import '../../../constants/app_colors.dart';
 import '../../../providers/theme_provider.dart';
-import 'dart:ui' as ui;
 
 class SavedPositionsController {
   final VoidCallback onStateChanged;

@@ -235,11 +235,11 @@ void stockfishIsolateMain(SendPort mainSendPort) {
             bestMove = moves.isNotEmpty ? moves[0] : '';
             ensureMultiPVSize(3);
             multiPV[0] = moves;
-            multiEval[0] = isMateScore ? "M${mateInValue.abs()}" : score;
+            multiEval[0] = isMateScore ? 'M${mateInValue.abs()}' : score;
           } else if (multipv <= 3) {
             ensureMultiPVSize(3);
             multiPV[multipv - 1] = moves;
-            multiEval[multipv - 1] = isMateScore ? "M${mateInValue.abs()}" : score;
+            multiEval[multipv - 1] = isMateScore ? 'M${mateInValue.abs()}' : score;
           }
 
           sendAnalysis();
@@ -267,7 +267,7 @@ void stockfishIsolateMain(SendPort mainSendPort) {
           mainSendPort.send({'type': 'engine_ready'});
           
           engineKeepAlive?.cancel();
-          engineKeepAlive = Timer.periodic(Duration(seconds: 30), (timer) {
+          engineKeepAlive = Timer.periodic(const Duration(seconds: 30), (timer) {
             if (engine != null && engineReady) {
               try {
                 engine!.stdin = 'isready';
@@ -313,7 +313,7 @@ void stockfishIsolateMain(SendPort mainSendPort) {
     engineInitializing = false;
     
     // Wait before restart
-    await Future.delayed(Duration(seconds: 2));
+    await Future.delayed(const Duration(seconds: 2));
     
     // Restart engine
     try {
@@ -353,7 +353,7 @@ void stockfishIsolateMain(SendPort mainSendPort) {
       });
 
       // Set timeout for engine initialization
-      engineTimeout = Timer(Duration(seconds: 20), () {
+      engineTimeout = Timer(const Duration(seconds: 20), () {
         if (!engineReady) {
           sendError('Engine initialization timeout after 20 seconds');
         }
@@ -363,7 +363,7 @@ void stockfishIsolateMain(SendPort mainSendPort) {
       sendDebug('Sending UCI commands...');
       
       // Initial UCI command
-      Future.delayed(Duration(milliseconds: 200), () {
+      Future.delayed(const Duration(milliseconds: 200), () {
         if (engine != null) {
           try {
             engine!.stdin = 'uci';
@@ -374,7 +374,7 @@ void stockfishIsolateMain(SendPort mainSendPort) {
           }
 
           // Wait for uciok, then send options
-          Future.delayed(Duration(milliseconds: 500), () {
+          Future.delayed(const Duration(milliseconds: 500), () {
             if (engine != null) {
               try {
                 engine!.stdin = 'setoption name Threads value 1';
@@ -387,7 +387,7 @@ void stockfishIsolateMain(SendPort mainSendPort) {
                 sendDebug('Sent: setoption name MultiPV value 3');
                 
                 // Final isready check
-                Future.delayed(Duration(milliseconds: 200), () {
+                Future.delayed(const Duration(milliseconds: 200), () {
                   if (engine != null) {
                     try {
                       engine!.stdin = 'isready';
@@ -462,7 +462,7 @@ void stockfishIsolateMain(SendPort mainSendPort) {
           }
 
           if (engine != null && engineReady) {
-            sendDebug('GO_START: ' + currentFen);
+            sendDebug('GO_START: $currentFen');
 
             // Reset state
             evaluation = 0.0;
@@ -478,7 +478,7 @@ void stockfishIsolateMain(SendPort mainSendPort) {
             try {
               sendDebug('GO_STOP: Sending stop command');
               engine!.stdin = 'stop';
-              Future.delayed(Duration(milliseconds: 150), () {
+              Future.delayed(const Duration(milliseconds: 150), () {
                 try {
                   if (engine != null && engineReady && !isRecovering) {
                     try {

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/cupertino.dart';
 import '../edit_position_screen/edit_position_screen.dart';
 import '../../widgets/analysis_widgets.dart';
 import '../../providers/theme_provider.dart';
@@ -254,10 +253,10 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: warningOrange.withOpacity(0.3)),
       ),
-      child: Row(
+      child: const Row(
         children: [
           Icon(Icons.warning_rounded, color: warningOrange, size: 24),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Text(
               'This position violates chess rules and cannot be analyzed.',

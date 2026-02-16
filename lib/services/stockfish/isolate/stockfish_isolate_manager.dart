@@ -64,7 +64,7 @@ class StockfishIsolateManager {
 
     // Wait for isolate to be ready with timeout
     try {
-      await isolateReadyCompleter.future.timeout(Duration(seconds: 20));
+      await isolateReadyCompleter.future.timeout(const Duration(seconds: 20));
       if (kDebugMode) debugPrint('Isolate communication established');
     } catch (e) {
       subscription.cancel();

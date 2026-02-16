@@ -54,7 +54,7 @@ class AnalysisState {
     this.isAnalyzing = false,
     this.hasError = false,
     this.engineReady = false,
-    this.analysisText = "Initializing analysis engine...",
+    this.analysisText = 'Initializing analysis engine...',
     this.lastError,
     this.evaluationScore = 0.0,
     this.isMateScore = false,
@@ -150,7 +150,7 @@ class AnalysisState {
       return 'Mate in ${mateInMoves.abs()} for ${mateInMoves > 0 ? "White" : "Black"}';
     } else {
       final sign = evaluationScore >= 0 ? '+' : '';
-      return '${sign}${evaluationScore.toStringAsFixed(2)}';
+      return '$sign${evaluationScore.toStringAsFixed(2)}';
     }
   }
   

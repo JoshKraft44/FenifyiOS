@@ -1,7 +1,7 @@
 // test/test_configuration.dart
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/constants/app_constants.dart';
+import 'package:fenify/constants/app_constants.dart';
 
 /// Test configuration and setup utilities
 class TestConfiguration {

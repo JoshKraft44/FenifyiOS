@@ -24,8 +24,7 @@ class FenUtils {
   static Position? createPosition(String fen) {
     try {
       final setup = Setup.parseFen(fen);
-      if (setup == null) return null;
-      
+
       return Position.setupPosition(setup);
     } catch (e) {
       if (kDebugMode) debugPrint('Error creating position from FEN: $e');
@@ -56,12 +55,12 @@ class FenUtils {
       if (parts.length >= 2) {
         parts[1] = turn == Side.white ? 'w' : 'b';
         final newFen = parts.join(' ');
-        
+
         // Validate the new FEN works
         final newPosition = createPosition(newFen);
         return newPosition?.fen ?? fen;
       }
-      
+
       return fen;
     } catch (e) {
       if (kDebugMode) debugPrint('Error creating FEN with turn: $e');
@@ -123,7 +122,6 @@ class FenUtils {
     return analysis?.materialBalance ?? 0;
   }
 
-
   /// Clean FEN by removing any custom flags
   static String cleanFen(String fen) {
     return fen.replaceAll(RegExp(r' INVALID_\w+'), '').trim();
@@ -138,7 +136,7 @@ class FenUtils {
   static Side? extractActiveColor(String fen) {
     final parts = fen.split(' ');
     if (parts.length < 2) return null;
-    
+
     return parts[1] == 'w' ? Side.white : Side.black;
   }
 
@@ -146,7 +144,7 @@ class FenUtils {
   static String extractCastlingRights(String fen) {
     final parts = fen.split(' ');
     if (parts.length < 3) return '-';
-    
+
     return parts[2];
   }
 
@@ -154,17 +152,18 @@ class FenUtils {
   static Square? extractEnPassantSquare(String fen) {
     final parts = fen.split(' ');
     if (parts.length < 4 || parts[3] == '-') return null;
-    
+
     try {
       // Parse square name like "e3", "d6", etc.
       final squareName = parts[3];
       if (squareName.length != 2) return null;
-      
+
       final fileIndex = squareName[0].codeUnitAt(0) - 'a'.codeUnitAt(0);
       final rankIndex = int.parse(squareName[1]) - 1;
-      
+
       if (fileIndex >= 0 && fileIndex < 8 && rankIndex >= 0 && rankIndex < 8) {
-        return Square.fromCoords(File.values[fileIndex], Rank.values[rankIndex]);
+        return Square.fromCoords(
+            File.values[fileIndex], Rank.values[rankIndex]);
       }
       return null;
     } catch (e) {
@@ -176,7 +175,7 @@ class FenUtils {
   static int extractHalfmoveClock(String fen) {
     final parts = fen.split(' ');
     if (parts.length < 5) return 0;
-    
+
     return int.tryParse(parts[4]) ?? 0;
   }
 
@@ -184,7 +183,7 @@ class FenUtils {
   static int extractFullmoveNumber(String fen) {
     final parts = fen.split(' ');
     if (parts.length < 6) return 1;
-    
+
     return int.tryParse(parts[5]) ?? 1;
   }
 
@@ -205,7 +204,7 @@ class FenUtils {
       halfmoveClock.toString(),
       fullmoveNumber.toString(),
     ];
-    
+
     return parts.join(' ');
   }
 
@@ -232,15 +231,15 @@ class FenUtils {
     };
 
     String fen = '';
-    
+
     for (int row = 0; row < 8; row++) {
       int emptyCount = 0;
-      
+
       for (int col = 0; col < 8; col++) {
         final index = row * 8 + col;
         final pieceLabel = pieceLabels[index];
         final pieceChar = pieceMap[pieceLabel] ?? '';
-        
+
         if (pieceChar.isEmpty) {
           emptyCount++;
         } else {
@@ -251,22 +250,21 @@ class FenUtils {
           fen += pieceChar;
         }
       }
-      
+
       if (emptyCount > 0) {
         fen += emptyCount.toString();
       }
-      
+
       if (row < 7) {
         fen += '/';
       }
     }
-    
+
     // Add the remaining FEN components
     fen += ' w KQkq - 0 1';
-    
+
     return fen;
   }
-
 
   /// Check if FEN represents starting position
   static bool isStartingPosition(String fen) {

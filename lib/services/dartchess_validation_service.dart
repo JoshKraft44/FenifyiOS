@@ -30,11 +30,7 @@ class DartChessValidationService {
       if (kDebugMode) debugPrint('$_TAG: Corrected FEN: $correctedFen');
       
       // Parse using dartchess library
-      final Setup? setup = Setup.parseFen(correctedFen);
-      
-      if (setup == null) {
-        return ValidationResult.invalid('Invalid FEN format - failed to parse');
-      }
+      final Setup setup = Setup.parseFen(correctedFen);
       
       // Create position from setup using updated API
       final Position position = Position.setupPosition(Rule.chess, setup);
@@ -297,7 +293,7 @@ class PositionAnalysis {
 
   String get materialDescription {
     if (materialBalance > 0) {
-      return 'White +${materialBalance}';
+      return 'White +$materialBalance';
     } else if (materialBalance < 0) {
       return 'Black +${materialBalance.abs()}';
     } else {

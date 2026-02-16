@@ -42,7 +42,7 @@ class ArrowStatusWidget extends StatelessWidget {
           Expanded(
             child: Text(
               'Showing best move: ${_formatMove(bestMove)}',
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 14,
                 color: AppColors.deepNavy,
                 fontWeight: FontWeight.w500,
@@ -58,7 +58,7 @@ class ArrowStatusWidget extends StatelessWidget {
               ),
               child: Text(
                 moveEvaluations[0],
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 12,
                   color: AppColors.successGreen,
                   fontWeight: FontWeight.bold,

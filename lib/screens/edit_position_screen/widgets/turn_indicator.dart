@@ -3,7 +3,6 @@ import 'package:dartchess/dartchess.dart';
 import 'dart:ui' as ui;
 import '../controllers/position_editor_controller.dart';
 import '../../../constants/app_colors.dart';
-import '../../../constants/app_dimensions.dart';
 import '../../../providers/theme_provider.dart';
 
 /// A widget that displays the current turn (White or Black) in the position editor

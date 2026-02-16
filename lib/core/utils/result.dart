@@ -149,7 +149,7 @@ extension NullableResultExtensions<T> on T? {
   /// Converts a nullable value to a Result
   Result<T, String> toResult([String? errorMessage]) {
     if (this != null) {
-      return Success(this!);
+      return Success(this as T);
     }
     return Failure(errorMessage ?? 'Value was null');
   }

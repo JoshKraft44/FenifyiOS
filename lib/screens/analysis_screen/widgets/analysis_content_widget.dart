@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../../widgets/analysis_widgets.dart';
 import '../../../providers/theme_provider.dart';
 import '../controllers/analysis_controller.dart';
-import 'arrow_status_widget.dart';
 import 'variation_tree_widget.dart';
 import 'dart:ui' as ui;
 

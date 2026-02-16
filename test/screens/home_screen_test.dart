@@ -13,7 +13,7 @@ void main() {
   group('HomeScreen Tests', () {
     testWidgets('renders home screen with main options', (WidgetTester tester) async {
       await tester.pumpWidget(
-        WidgetTestHelpers.wrapInMaterialApp(HomeScreen()),
+        WidgetTestHelpers.wrapInMaterialApp(const HomeScreen()),
       );
       
       expect(find.text('fenify'), findsOneWidget);
@@ -24,7 +24,7 @@ void main() {
 
     testWidgets('navigates to camera analysis', (WidgetTester tester) async {
       await tester.pumpWidget(
-        WidgetTestHelpers.wrapInMaterialApp(HomeScreen()),
+        WidgetTestHelpers.wrapInMaterialApp(const HomeScreen()),
       );
       
       await tester.tap(find.byIcon(Icons.camera_alt_rounded));
@@ -35,7 +35,7 @@ void main() {
 
     testWidgets('navigates to position editor', (WidgetTester tester) async {
       await tester.pumpWidget(
-        WidgetTestHelpers.wrapInMaterialApp(HomeScreen()),
+        WidgetTestHelpers.wrapInMaterialApp(const HomeScreen()),
       );
       
       await tester.tap(find.byIcon(Icons.edit_note_rounded));
@@ -46,7 +46,7 @@ void main() {
 
     testWidgets('navigates to saved positions', (WidgetTester tester) async {
       await tester.pumpWidget(
-        WidgetTestHelpers.wrapInMaterialApp(HomeScreen()),
+        WidgetTestHelpers.wrapInMaterialApp(const HomeScreen()),
       );
       
       await tester.tap(find.byIcon(Icons.bookmark_rounded));

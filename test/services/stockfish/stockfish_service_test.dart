@@ -1,7 +1,6 @@
 
 // test/services/stockfish/stockfish_service_test.dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fenify/services/stockfish/stockfish_service.dart';
 import '../../test_setup.dart';
 import '../../fixtures/test_positions.dart';
 import '../../mocks/mock_services.dart';

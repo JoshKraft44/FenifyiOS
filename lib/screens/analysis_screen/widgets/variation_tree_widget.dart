@@ -299,7 +299,7 @@ class _VariationTreeWidgetState extends State<VariationTreeWidget> {
       // Add move number for white moves or start of variations
       if (isWhiteMove || (i == 0 && !isMainLine)) {
         spans.add(TextSpan(
-          text: '${moveNumber}${isWhiteMove ? '.' : '...'} ',
+          text: '$moveNumber${isWhiteMove ? '.' : '...'} ',
           style: TextStyle(
             fontSize: 14,
             color: context.secondaryTextColor.withOpacity(0.8),

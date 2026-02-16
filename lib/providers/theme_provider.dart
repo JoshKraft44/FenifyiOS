@@ -28,8 +28,6 @@ class ThemeProvider extends ChangeNotifier {
       primary: AppColors.columbiaBlue,
       secondary: AppColors.lightBlue,
       surface: Color(0xFF1a1a1a),
-      background: Colors.black,
-      onBackground: Colors.white,
       onSurface: Colors.white,
     ),
     appBarTheme: const AppBarTheme(
@@ -82,8 +80,6 @@ class ThemeProvider extends ChangeNotifier {
       primary: AppColors.deepNavy,
       secondary: AppColors.columbiaBlue,
       surface: Colors.white,
-      background: AppColors.seasalt,
-      onBackground: AppColors.deepNavy,
       onSurface: AppColors.deepNavy,
     ),
     appBarTheme: const AppBarTheme(

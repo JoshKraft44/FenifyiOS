@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:dartchess/dartchess.dart';
 import '../../../providers/theme_provider.dart';
 
 /// Widget for selecting chess pieces during position editing

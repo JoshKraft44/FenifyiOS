@@ -28,7 +28,7 @@ class _ImageProcessingScreenState extends State<ImageProcessingScreen> {
       final imageProcessor = ImageProcessor();
       final result = await imageProcessor.processImageFile(widget.imageFile);
 
-      if (result != null && result.isNotEmpty) {
+      if (result.isNotEmpty) {
         if (mounted) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(

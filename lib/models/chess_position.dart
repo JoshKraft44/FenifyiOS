@@ -122,7 +122,6 @@ class ChessPosition {
   Position? get position {
     try {
       final setup = Setup.parseFen(fen);
-      if (setup == null) return null;
       return Position.setupPosition(Rule.chess, setup);
     } catch (e) {
       return null;

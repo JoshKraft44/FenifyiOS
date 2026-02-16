@@ -116,7 +116,7 @@ class _ProScreenState extends State<ProScreen> {
                       ),
                       elevation: 0,
                     ),
-                    child: Text(
+                    child: const Text(
                       'Start Free Trial',
                       style: TextStyle(
                         fontSize: 16,
@@ -333,7 +333,7 @@ class _ProScreenState extends State<ProScreen> {
     // TODO: Implement subscription logic
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Subscription functionality coming soon!'),
+        content: const Text('Subscription functionality coming soon!'),
         backgroundColor: AppColors.columbiaBlue,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

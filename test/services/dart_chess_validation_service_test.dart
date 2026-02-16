@@ -1,6 +1,5 @@
 // test/services/dartchess_validation_service_test.dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dartchess/dartchess.dart';
 import 'package:fenify/services/dartchess_validation_service.dart';
 import '../test_setup.dart';
 import '../fixtures/test_positions.dart';

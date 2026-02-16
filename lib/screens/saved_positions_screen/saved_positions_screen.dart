@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:dartchess/dartchess.dart';
 import '../../models/chess_position.dart';
 import '../../constants/app_colors.dart';
-import '../../constants/app_dimensions.dart';
-import '../../services/storage_service.dart';
 import '../../providers/theme_provider.dart';
 import '../analysis_screen/analysis_screen.dart';
 import 'controllers/saved_positions_controller.dart';
@@ -232,7 +229,7 @@ class _SavedPositionsScreenState extends State<SavedPositionsScreen>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            Icon(Icons.warning_rounded, color: AppColors.warningOrange, size: 24),
+            const Icon(Icons.warning_rounded, color: AppColors.warningOrange, size: 24),
             const SizedBox(width: 8),
             Text('Clear All Positions', style: TextStyle(color: context.primaryTextColor, fontWeight: FontWeight.w600)),
           ],
@@ -269,7 +266,7 @@ class _SavedPositionsScreenState extends State<SavedPositionsScreen>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            Icon(Icons.delete_rounded, color: AppColors.errorRed, size: 24),
+            const Icon(Icons.delete_rounded, color: AppColors.errorRed, size: 24),
             const SizedBox(width: 8),
             Text('Delete Position', style: TextStyle(color: context.primaryTextColor, fontWeight: FontWeight.w600)),
           ],

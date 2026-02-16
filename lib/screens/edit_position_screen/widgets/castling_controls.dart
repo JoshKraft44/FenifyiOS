@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../controllers/position_editor_controller.dart';
 import '../../../constants/app_colors.dart';
-import '../../../constants/app_dimensions.dart';
 import '../../../providers/theme_provider.dart';
 
 class CastlingControls extends StatelessWidget {
@@ -51,8 +50,8 @@ class CastlingControls extends StatelessWidget {
                     ),
                   );
                 },
-                icon: Icon(Icons.auto_awesome_rounded, size: 16, color: AppColors.successGreen),
-                label: Text(
+                icon: const Icon(Icons.auto_awesome_rounded, size: 16, color: AppColors.successGreen),
+                label: const Text(
                   'Auto-detect',
                   style: TextStyle(color: AppColors.successGreen, fontSize: 12),
                 ),
@@ -186,7 +185,7 @@ class CastlingControls extends StatelessWidget {
       if (!isValid) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('This castling right is not possible with the current piece positions'),
+            content: const Text('This castling right is not possible with the current piece positions'),
             backgroundColor: AppColors.errorRed,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

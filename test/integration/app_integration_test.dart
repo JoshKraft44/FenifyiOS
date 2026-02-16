@@ -31,7 +31,7 @@ void main() {
       
       // Navigate to analysis
       await tester.tap(find.text('Analyze Position'));
-      await tester.pumpAndSettle(Duration(seconds: 3));
+      await tester.pumpAndSettle(const Duration(seconds: 3));
       
       // Should be on analysis screen
       expect(find.text('Analysis'), findsOneWidget);
@@ -85,19 +85,19 @@ void main() {
       for (int i = 0; i < 5; i++) {
         // Go to position editor
         await tester.tap(find.byIcon(Icons.edit_note_rounded));
-        await tester.pump(Duration(milliseconds: 100));
+        await tester.pump(const Duration(milliseconds: 100));
         
         // Go back
         await tester.pageBack();
-        await tester.pump(Duration(milliseconds: 100));
+        await tester.pump(const Duration(milliseconds: 100));
         
         // Go to saved positions
         await tester.tap(find.byIcon(Icons.bookmark_rounded));
-        await tester.pump(Duration(milliseconds: 100));
+        await tester.pump(const Duration(milliseconds: 100));
         
         // Go back
         await tester.pageBack();
-        await tester.pump(Duration(milliseconds: 100));
+        await tester.pump(const Duration(milliseconds: 100));
       }
       
       await tester.pumpAndSettle();
@@ -121,7 +121,7 @@ void main() {
       
       // Navigate to analysis
       await tester.tap(find.text('Analyze Position'));
-      await tester.pumpAndSettle(Duration(seconds: 3));
+      await tester.pumpAndSettle(const Duration(seconds: 3));
       
       // Save position
       await tester.tap(find.byIcon(Icons.bookmark_add_rounded));

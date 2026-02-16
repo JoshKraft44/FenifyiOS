@@ -70,7 +70,7 @@ class AnalysisWidgets {
           const SizedBox(width: 12),
           Text(
             '${position.turn == Side.white ? "White" : "Black"} to move', 
-            style: TextStyle(
+            style: const TextStyle(
               fontWeight: FontWeight.w600, 
               color: AppColors.deepNavy, 
               fontSize: 15
@@ -78,7 +78,7 @@ class AnalysisWidgets {
           ),
           const Spacer(),
           if (isAnalyzing) ...[
-            SizedBox(
+            const SizedBox(
               width: 16, 
               height: 16, 
               child: CircularProgressIndicator(
@@ -89,16 +89,16 @@ class AnalysisWidgets {
             const SizedBox(width: 8),
             Text(
               'Depth $currentDepth', 
-              style: TextStyle(
+              style: const TextStyle(
                 color: AppColors.cadetGray, 
                 fontSize: 12, 
                 fontWeight: FontWeight.w500
               )
             ),
           ] else if (engineReady) ...[
-            Icon(Icons.check_circle_rounded, color: AppColors.successGreen, size: 18),
+            const Icon(Icons.check_circle_rounded, color: AppColors.successGreen, size: 18),
             const SizedBox(width: 6),
-            Text(
+            const Text(
               'Ready', 
               style: TextStyle(
                 color: AppColors.successGreen, 
@@ -128,7 +128,7 @@ class AnalysisWidgets {
               if (index >= multiPV.length || multiPV[index].isEmpty) {
                 return const SizedBox.shrink();
               }
-              final eval = index < moveEvaluations.length ? moveEvaluations[index] : "0.00";
+              final eval = index < moveEvaluations.length ? moveEvaluations[index] : '0.00';
               final variation = multiPV[index].take(3).map(formatMove).join(' ');
               return Container(
                 padding: const EdgeInsets.all(8),
@@ -328,7 +328,7 @@ class AnalysisWidgets {
         ),
         child: Column(
           children: [
-            Icon(Icons.error_outline_rounded, color: AppColors.errorRed, size: 48),
+            const Icon(Icons.error_outline_rounded, color: AppColors.errorRed, size: 48),
             const SizedBox(height: 16),
             Text(
               'Analysis Error', 
