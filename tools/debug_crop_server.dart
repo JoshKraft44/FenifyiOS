@@ -34,14 +34,16 @@ void main(List<String> args) async {
   }
 
   final InternetAddress bindAddress = await _resolveHost(host);
-  final server = await _bindWithFallback(bindAddress, port, attempts: fallbackAttempts);
+  final server =
+      await _bindWithFallback(bindAddress, port, attempts: fallbackAttempts);
   final boundHost = server.address.address == InternetAddress.anyIPv4.address
       ? 'localhost'
       : server.address.address;
   print('Debug crop server listening on http://$boundHost:${server.port}');
   print('Saving uploads to: ${saveDir.path}');
   print('Health:  GET  http://$boundHost:${server.port}/health');
-  print('Upload:  curl -X POST --data-binary @file.jpg "http://$boundHost:${server.port}/upload?name=file.jpg"');
+  print(
+      'Upload:  curl -X POST --data-binary @file.jpg "http://$boundHost:${server.port}/upload?name=file.jpg"');
 
   await for (HttpRequest req in server) {
     try {
@@ -53,7 +55,8 @@ void main(List<String> args) async {
       }
 
       if (req.method == 'POST' && req.uri.path == '/upload') {
-        final name = req.uri.queryParameters['name'] ?? 'upload-${DateTime.now().millisecondsSinceEpoch}.bin';
+        final name = req.uri.queryParameters['name'] ??
+            'upload-${DateTime.now().millisecondsSinceEpoch}.bin';
         final file = File('${saveDir.path}/$name');
         final sink = file.openWrite();
         await req.listen((data) => sink.add(data)).asFuture();
@@ -61,7 +64,8 @@ void main(List<String> args) async {
         req.response.statusCode = 200;
         req.response.write('saved ${file.path}');
         await req.response.close();
-        print('Saved ${file.path} from ${req.connectionInfo?.remoteAddress.address}');
+        print(
+            'Saved ${file.path} from ${req.connectionInfo?.remoteAddress.address}');
       } else {
         req.response.statusCode = 404;
         await req.response.close();
@@ -77,7 +81,8 @@ void main(List<String> args) async {
   }
 }
 
-Future<HttpServer> _bindWithFallback(InternetAddress address, int port, {int attempts = 10}) async {
+Future<HttpServer> _bindWithFallback(InternetAddress address, int port,
+    {int attempts = 10}) async {
   // If port == 0, OS will choose a free ephemeral port.
   if (port == 0) {
     return HttpServer.bind(address, 0);
@@ -89,7 +94,8 @@ Future<HttpServer> _bindWithFallback(InternetAddress address, int port, {int att
     try {
       final server = await HttpServer.bind(address, p);
       if (i > 0) {
-        stderr.writeln('Note: requested port $port was busy; bound to $p instead.');
+        stderr.writeln(
+            'Note: requested port $port was busy; bound to $p instead.');
       }
       return server;
     } on SocketException catch (e) {
@@ -105,7 +111,9 @@ Future<HttpServer> _bindWithFallback(InternetAddress address, int port, {int att
     }
   }
   // If we got here, all attempts failed with EADDRINUSE
-  throw SocketException('All attempted ports $port..${port + attempts} are in use', osError: lastError?.osError);
+  throw SocketException(
+      'All attempted ports $port..${port + attempts} are in use',
+      osError: lastError?.osError);
 }
 
 Future<InternetAddress> _resolveHost(String host) async {

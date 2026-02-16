@@ -286,20 +286,14 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     return Container(
       decoration: BoxDecoration(
         color: context.surfaceColor,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        border: Border.all(color: context.borderColor, width: 1),
-        boxShadow: context.isDarkMode ? null : [
-          BoxShadow(
-            color: context.primaryTextColor.withOpacity(0.1), 
-            blurRadius: 20, 
-            offset: const Offset(0, -8)
-          )
-        ],
+        border: Border(
+          top: BorderSide(color: context.borderColor, width: 1),
+        ),
       ),
       child: SafeArea(
         child: Container(
-          height: 68,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
@@ -341,23 +335,15 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         color: Colors.transparent,
         child: InkWell(
           onTap: enabled ? onPressed : null,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: enabled 
-                ? (context.isDarkMode 
-                    ? Colors.white.withOpacity(0.1)
-                    : context.accentColor.withOpacity(0.1))
-                : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-            ),
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
             child: Icon(
               icon,
-              color: enabled 
+              color: enabled
                 ? context.primaryTextColor
                 : context.secondaryTextColor.withOpacity(0.5),
-              size: 24,
+              size: 22,
             ),
           ),
         ),

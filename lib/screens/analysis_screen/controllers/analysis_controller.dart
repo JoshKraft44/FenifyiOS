@@ -332,7 +332,6 @@ class AnalysisController {
 
       final analysisStream = _stockfishService.startContinuousAnalysis(
         currentFen,
-        multiPVLines: _multiPVLines,
       );
 
       // Feed analysis stream to throttler and subscribe to throttled output
@@ -881,7 +880,6 @@ class AnalysisController {
 
       final analysisStream = _stockfishService.startContinuousAnalysis(
         currentFen,
-        multiPVLines: _multiPVLines,
       );
       // StockfishService increments its analysis ID when the returned stream is istened to
       final expectedStockfishId = _stockfishService.currentAnalysisId + 1;

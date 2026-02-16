@@ -28,7 +28,7 @@ class AnalysisStatusWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: context.surfaceColor,
         border: Border(
@@ -81,7 +81,9 @@ class AnalysisStatusWidget extends StatelessWidget {
               child: CircularProgressIndicator(
                 strokeWidth: 2, 
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  context.isDarkMode ? Colors.white.withOpacity(0.7) : lightBlue,
+                  context.isDarkMode
+                      ? Colors.white.withOpacity(0.7)
+                      : lightBlue,
                 ),
               ),
             ),

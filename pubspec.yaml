@@ -36,6 +36,9 @@ dependencies:
 
   tflite_flutter: ^0.10.1
   
+  # HTTP client
+  http: ^1.5.0
+
   # OpenCV for enhanced board detection
   opencv_dart: ^1.2.0
 

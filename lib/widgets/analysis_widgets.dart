@@ -131,20 +131,25 @@ class AnalysisWidgets {
               final eval = index < moveEvaluations.length ? moveEvaluations[index] : "0.00";
               final variation = multiPV[index].take(3).map(formatMove).join(' ');
               return Container(
-                margin: const EdgeInsets.symmetric(vertical: 2),
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: context.isDarkMode 
-                    ? (index == 0 
-                        ? Colors.white.withOpacity(0.1) 
+                  color: context.isDarkMode
+                    ? (index == 0
+                        ? Colors.white.withOpacity(0.1)
                         : Colors.white.withOpacity(0.05))
-                    : (index == 0 
-                        ? AppColors.columbiaBlue.withOpacity(0.15) 
+                    : (index == 0
+                        ? AppColors.columbiaBlue.withOpacity(0.15)
                         : AppColors.seasalt),
-                  borderRadius: BorderRadius.circular(AppDimensions.borderRadiusMedium),
-                  border: context.isDarkMode 
-                    ? Border.all(color: Colors.white.withOpacity(0.1)) 
-                    : null,
+                  border: Border(
+                    top: index > 0
+                      ? BorderSide(
+                          color: context.isDarkMode
+                            ? Colors.white.withOpacity(0.15)
+                            : context.borderColor,
+                          width: 0.5,
+                        )
+                      : BorderSide.none,
+                  ),
                 ),
                 child: Row(
                   children: [

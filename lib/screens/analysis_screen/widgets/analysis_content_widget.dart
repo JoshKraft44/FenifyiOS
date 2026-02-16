@@ -76,7 +76,7 @@ class _AnalysisContentWidgetState extends State<AnalysisContentWidget> {
 
   Widget _buildPageIndicator(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 7, 16, 7),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -129,7 +129,7 @@ class _AnalysisContentWidgetState extends State<AnalysisContentWidget> {
 
   Widget _buildBestMovesPage(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      padding: const EdgeInsets.fromLTRB(0, 4, 0, 16),
       child: Column(
         children: [
           // Analysis card
