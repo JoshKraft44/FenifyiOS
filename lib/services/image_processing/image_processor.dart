@@ -24,18 +24,17 @@ class ImageProcessor {
   bool _modelLoaded = false;
   static const MethodChannel _channel = MethodChannel('chess_ml_channel');
 
-  // Debug export base URL; when set in debug mode, crops or inputs may be POSTed
-  // to a local server for inspection (see tools/debug_crop_server.dart).
+  // Debug export base URL for HTTP upload to a local server.
+  // Local file saving always enabled via DebugExporter.enableLocalSave.
+  // when set in debug mode, crops or inputs may be POSTed
+  // to a local server for inspection / debug_crop_server.dart.
   static String? _debugExportBaseUrl;
   static set debugExportBaseUrl(String? url) {
-    // Force disable debug exporter to prevent connection issues
-    _debugExportBaseUrl = null;
-    DebugExporter.baseUrl = null;
-    if (kDebugMode) {
-      debugPrint('DebugExporter: disabled (forced)');
-    }
+    _debugExportBaseUrl = url;
+    DebugExporter.baseUrl = url;
   }
-  static String? get debugExportBaseUrl => null; // Always disabled
+
+  static String? get debugExportBaseUrl => _debugExportBaseUrl;
 
   /// Maps TensorFlow Lite model predictions to chess piece notation
   static const List<String> _pieceMapping = [
@@ -153,8 +152,8 @@ class ImageProcessor {
   Future<String> _processWithNativeKotlinPipeline(io.File imageFile) async {
     try {
       final imageBytes = await imageFile.readAsBytes();
-      // Optionally export original for debugging
-      if (kDebugMode && (_debugExportBaseUrl != null && _debugExportBaseUrl!.isNotEmpty)) {
+      // Export original for debugging
+      if (kDebugMode && DebugExporter.enableLocalSave) {
         final ts = DateTime.now().millisecondsSinceEpoch;
         unawaited(DebugExporter.exportBytes(imageBytes, name: 'original_$ts.png'));
       }
@@ -167,9 +166,10 @@ class ImageProcessor {
         if (enhancedImageBytes != null) {
           finalImageBytes = enhancedImageBytes;
           opencvUsed = true;
-          if (kDebugMode && (_debugExportBaseUrl != null && _debugExportBaseUrl!.isNotEmpty)) {
+          if (kDebugMode && DebugExporter.enableLocalSave) {
             final ts = DateTime.now().millisecondsSinceEpoch;
-            unawaited(DebugExporter.exportBytes(finalImageBytes, name: 'opencv_crop_$ts.png'));
+            unawaited(DebugExporter.exportBytes(finalImageBytes,
+                name: 'opencv_crop_$ts.png'));
           }
         }
       } catch (e) {
@@ -179,10 +179,12 @@ class ImageProcessor {
       }
 
       if (kDebugMode) {
-        print('OpenCV enhancement attempt: ${opencvUsed ? "APPLIED" : "SKIPPED (fallback to original)"}');
-        if (!opencvUsed && (_debugExportBaseUrl != null && _debugExportBaseUrl!.isNotEmpty)) {
+        print(
+            'OpenCV enhancement attempt: ${opencvUsed ? "APPLIED" : "SKIPPED (fallback to original)"}');
+        if (!opencvUsed && DebugExporter.enableLocalSave) {
           final ts = DateTime.now().millisecondsSinceEpoch;
-          unawaited(DebugExporter.exportBytes(finalImageBytes, name: 'final_original_$ts.png'));
+          unawaited(DebugExporter.exportBytes(finalImageBytes,
+              name: 'final_original_$ts.png'));
         }
       }
 
@@ -284,7 +286,6 @@ class ImageProcessor {
       }
       
       return fen;
-      
     } catch (e) {
       if (kDebugMode) debugPrint('Error in auto-orientation: $e');
       return fen;
@@ -514,7 +515,8 @@ class ImageProcessor {
       }
       
       // For vertical screenshots (common case), apply OpenCV if board might be small in frame
-      if (aspectRatio < 0.8) { // Taller than wide (vertical screenshot)
+      if (aspectRatio < 0.8) {
+        // Taller than wide (vertical screenshot)
         // Check if the image seems to have a lot of extra content
         // Simple heuristic: if height is much larger than width, likely has extra UI elements
         if (height > width * 1.5) {
@@ -535,9 +537,12 @@ class ImageProcessor {
   /// Processes raw image bytes - delegates to native implementation for performance
   Future<String> processImage(Uint8List imageBytes) async {
     if (!_isInitialized) {
-      if (kDebugMode) debugPrint('ImageProcessor: Initializing before processing...');
+      if (kDebugMode)
+        debugPrint('ImageProcessor: Initializing before processing...');
       await init();
-      if (kDebugMode) debugPrint('ImageProcessor: Initialization completed, modelLoaded: $_modelLoaded');
+      if (kDebugMode)
+        debugPrint(
+            'ImageProcessor: Initialization completed, modelLoaded: $_modelLoaded');
     }
 
     try {
@@ -545,7 +550,8 @@ class ImageProcessor {
       
       // Create temporary file for native processing
       final tempDir = io.Directory.systemTemp;
-      final tempFile = io.File('${tempDir.path}/temp_chess_image_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      final tempFile = io.File(
+          '${tempDir.path}/temp_chess_image_${DateTime.now().millisecondsSinceEpoch}.jpg');
       await tempFile.writeAsBytes(imageBytes);
       
       final result = await _processWithNativeKotlinPipeline(tempFile);
@@ -556,9 +562,8 @@ class ImageProcessor {
       } catch (e) {
         if (kDebugMode) debugPrint('Could not delete temp file: $e');
       }
-      
-      return result;
 
+      return result;
     } catch (e) {
       if (kDebugMode) debugPrint('Error processing image: $e');
       return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";

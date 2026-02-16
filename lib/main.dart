@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/home_screen.dart';
-import 'utils/debug_helper.dart';
+import 'services/image_processing/debug_exporter.dart';
 
 // Application entry point
 void main() async {
@@ -11,7 +11,8 @@ void main() async {
 
   // Print debug folder path in debug mode
   if (kDebugMode) {
-    await DebugHelper.printDebugPath();
+    final path = await DebugExporter.getDebugFolderPath();
+    debugPrint('DEBUG FOLDER PATH: ${path ?? 'Not available'}');
   }
 
   runApp(const ChessAnalyzerApp());
