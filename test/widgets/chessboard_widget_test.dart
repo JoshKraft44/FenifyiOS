@@ -14,7 +14,7 @@ void main() {
     testWidgets('displays chess board with starting position', (WidgetTester tester) async {
       await tester.pumpWidget(
         WidgetTestHelpers.wrapInMaterialApp(
-          ChessBoardWidget(fen: TestPositions.startingPosition),
+          const ChessBoardWidget(fen: TestPositions.startingPosition),
         ),
       );
       
@@ -24,7 +24,7 @@ void main() {
     testWidgets('shows error for invalid FEN', (WidgetTester tester) async {
       await tester.pumpWidget(
         WidgetTestHelpers.wrapInMaterialApp(
-          ChessBoardWidget(fen: TestPositions.invalidNoKings),
+          const ChessBoardWidget(fen: TestPositions.invalidNoKings),
         ),
       );
       

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../controllers/position_editor_controller.dart';
 import '../../../constants/app_colors.dart';
-import '../../../constants/app_dimensions.dart';
 import '../../../providers/theme_provider.dart';
 
 class EditModeSelector extends StatelessWidget {

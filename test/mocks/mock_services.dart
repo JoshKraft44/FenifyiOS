@@ -1,7 +1,6 @@
 // test/mocks/mock_services.dart
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fenify/services/dartchess_validation_service.dart';
-import 'package:fenify/models/chess_position.dart';
 
 class MockValidationService {
   static bool shouldFail = false;
@@ -34,7 +33,7 @@ class MockImageProcessor {
     if (_shouldFail) {
       throw Exception('Mock model loading failed');
     }
-    await Future.delayed(Duration(milliseconds: 100));
+    await Future.delayed(const Duration(milliseconds: 100));
   }
   
   Future<String> processImage(List<int> imageBytes) async {
@@ -42,7 +41,7 @@ class MockImageProcessor {
       throw Exception('Mock image processing failed');
     }
     
-    await Future.delayed(Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 500));
     return _mockFen;
   }
   
@@ -61,7 +60,7 @@ class MockStockfishService {
   static double _mockEvaluation = 0.0;
   
   static Future<void> initialize() async {
-    await Future.delayed(Duration(milliseconds: 200));
+    await Future.delayed(const Duration(milliseconds: 200));
     _isInitialized = true;
   }
   
@@ -74,7 +73,7 @@ class MockStockfishService {
       throw Exception('Stockfish not initialized');
     }
     
-    await Future.delayed(Duration(milliseconds: 1000));
+    await Future.delayed(const Duration(milliseconds: 1000));
     
     return {
       'evaluation': _mockEvaluation,

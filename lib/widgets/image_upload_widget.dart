@@ -42,29 +42,29 @@ class _ImageUploadWidgetState extends State<ImageUploadWidget> {
     try {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(source: source);
-      
+
       if (image != null) {
         setState(() {
           _selectedImage = io.File(image.path);
           _isProcessing = true;
         });
-        
+
         widget.onImageSelected?.call();
-        
+
         // Process the image to extract FEN
         final fen = await _imageProcessor.processImageFile(_selectedImage!);
-        
+
         setState(() {
           _isProcessing = false;
         });
-        
+
         widget.onFenGenerated(fen);
       }
     } catch (e) {
       setState(() {
         _isProcessing = false;
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -81,12 +81,14 @@ class _ImageUploadWidgetState extends State<ImageUploadWidget> {
     if (_selectedImage != null) {
       try {
         if (kDebugMode) debugPrint('Starting debug square extraction...');
-        final squaresPaths = await _imageProcessor.extractSquaresForDebugging(_selectedImage!);
-        
+        final squaresPaths =
+            await _imageProcessor.extractSquaresForDebugging(_selectedImage!);
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Extracted ${squaresPaths.length} squares for debugging'),
+              content: Text(
+                  'Extracted ${squaresPaths.length} squares for debugging'),
               backgroundColor: Colors.green.shade400,
             ),
           );
@@ -130,14 +132,14 @@ class _ImageUploadWidgetState extends State<ImageUploadWidget> {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             if (_isProcessing) ...[
               const CircularProgressIndicator(),
               const SizedBox(height: 16),
               const Text('Processing chess position...'),
               const SizedBox(height: 16),
             ],
-            
+
             // Debug button
             ElevatedButton.icon(
               onPressed: _debugExtractSquares,
@@ -150,13 +152,15 @@ class _ImageUploadWidgetState extends State<ImageUploadWidget> {
             ),
             const SizedBox(height: 16),
           ],
-          
+
           // Image selection buttons
           Row(
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: _isProcessing ? null : () => _pickImage(ImageSource.camera),
+                  onPressed: _isProcessing
+                      ? null
+                      : () => _pickImage(ImageSource.camera),
                   icon: const Icon(Icons.camera_alt),
                   label: const Text('Camera'),
                   style: ElevatedButton.styleFrom(
@@ -167,7 +171,9 @@ class _ImageUploadWidgetState extends State<ImageUploadWidget> {
               const SizedBox(width: 16),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: _isProcessing ? null : () => _pickImage(ImageSource.gallery),
+                  onPressed: _isProcessing
+                      ? null
+                      : () => _pickImage(ImageSource.gallery),
                   icon: const Icon(Icons.photo_library),
                   label: const Text('Gallery'),
                   style: ElevatedButton.styleFrom(

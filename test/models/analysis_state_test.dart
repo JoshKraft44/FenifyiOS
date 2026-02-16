@@ -1,7 +1,6 @@
 // test/models/analysis_state_test.dart
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fenify/screens/analysis_screen/models/analysis_state.dart';
-import 'package:dartchess/dartchess.dart';
 import '../test_setup.dart';
 import '../fixtures/test_positions.dart';
 

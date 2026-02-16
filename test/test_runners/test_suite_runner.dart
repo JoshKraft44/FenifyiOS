@@ -109,7 +109,7 @@ class TestSuiteRunner {
   }
   
   static void printTestSummary() {
-    print('\n' + '='*70);
+    print('\n${'='*70}');
     print('fenify TEST SUITE EXECUTION COMPLETE');
     print('='*70);
     print('OK Services: DartChess validation, Stockfish integration, Storage');

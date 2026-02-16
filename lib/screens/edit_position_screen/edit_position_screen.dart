@@ -7,7 +7,6 @@ import 'dart:ui' as ui;
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import '../../../services/dartchess_validation_service.dart';
 import '../../constants/app_colors.dart';
-import '../../constants/app_dimensions.dart';
 import '../../providers/theme_provider.dart';
 import 'controllers/position_editor_controller.dart';
 import 'widgets/edit_mode_selector.dart';
@@ -124,11 +123,11 @@ class _EditPositionScreenState extends State<EditPositionScreen> {
                 _controller.flipBoard180();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Row(
+                    content: const Row(
                       children: [
                         Icon(Icons.rotate_90_degrees_ccw_rounded, color: Colors.white, size: 20),
-                        const SizedBox(width: 8),
-                        const Text('Board flipped 180°'),
+                        SizedBox(width: 8),
+                        Text('Board flipped 180°'),
                       ],
                     ),
                     backgroundColor: AppColors.warningOrange,
@@ -196,7 +195,7 @@ class _EditPositionScreenState extends State<EditPositionScreen> {
 
               // Chess board
               Center(
-                child: Container(
+                child: SizedBox(
                   width: boardSize,
                   height: boardSize,
                   child: Stack(
@@ -208,32 +207,32 @@ class _EditPositionScreenState extends State<EditPositionScreen> {
                         // Board Colors
                         settings: ChessboardSettings(
                           colorScheme: context.isDarkMode
-                            ? ChessboardColorScheme(
-                                lightSquare: const Color(0xFF5a5a5a), // Brighter medium gray
-                                darkSquare: const Color(0xFF404040),   // Brighter darker gray
+                            ? const ChessboardColorScheme(
+                                lightSquare: Color(0xFF5a5a5a), // Brighter medium gray
+                                darkSquare: Color(0xFF404040),   // Brighter darker gray
                                 background: SolidColorChessboardBackground(
-                                  lightSquare: const Color(0xFF5a5a5a),
-                                  darkSquare: const Color(0xFF404040),
+                                  lightSquare: Color(0xFF5a5a5a),
+                                  darkSquare: Color(0xFF404040),
                                   coordinates: false,
                                 ),
                                 whiteCoordBackground: SolidColorChessboardBackground(
-                                  lightSquare: const Color(0xFF5a5a5a),
-                                  darkSquare: const Color(0xFF404040),
+                                  lightSquare: Color(0xFF5a5a5a),
+                                  darkSquare: Color(0xFF404040),
                                   coordinates: true,
                                 ),
                                 blackCoordBackground: SolidColorChessboardBackground(
-                                  lightSquare: const Color(0xFF5a5a5a),
-                                  darkSquare: const Color(0xFF404040),
+                                  lightSquare: Color(0xFF5a5a5a),
+                                  darkSquare: Color(0xFF404040),
                                   coordinates: true,
                                 ),
                                 lastMove: HighlightDetails(
-                                  solidColor: const Color(0xFF656565),
+                                  solidColor: Color(0xFF656565),
                                 ),
                                 selected: HighlightDetails(
-                                  solidColor: const Color(0xFF707070),
+                                  solidColor: Color(0xFF707070),
                                 ),
-                                validMoves: const Color(0xFF909090),
-                                validPremoves: const Color(0xFF808080),
+                                validMoves: Color(0xFF909090),
+                                validPremoves: Color(0xFF808080),
                               )
                             : ChessboardColorScheme.blue,
                         ),
@@ -295,26 +294,26 @@ class _EditPositionScreenState extends State<EditPositionScreen> {
         color = AppColors.successGreen;
         icon = Icons.touch_app_rounded;
       } else {
-        message = "Tap any piece to select it, then tap where to move it";
+        message = 'Tap any piece to select it, then tap where to move it';
         color = AppColors.lightBlue;
         icon = Icons.touch_app_rounded;
       }
     } else if (_controller.isPlaceMode) {
       if (_controller.selectedPiece != null) {
-        message = "Selected ${_controller.selectedPiece} - tap any square to place it";
+        message = 'Selected ${_controller.selectedPiece} - tap any square to place it';
         color = AppColors.successGreen;
         icon = Icons.add_circle_rounded;
       } else {
-        message = "Select a piece to place, then tap any square";
+        message = 'Select a piece to place, then tap any square';
         color = AppColors.warningOrange;
         icon = Icons.add_circle_rounded;
       }
     } else if (_controller.isRemoveMode) {
-      message = "Tap any piece to remove it from the board";
+      message = 'Tap any piece to remove it from the board';
       color = AppColors.errorRed;
       icon = Icons.delete_rounded;
     } else {
-      message = "Select an edit mode above";
+      message = 'Select an edit mode above';
       color = AppColors.cadetGray;
       icon = Icons.help_rounded;
     }

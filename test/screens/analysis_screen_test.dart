@@ -17,7 +17,7 @@ void main() {
     testWidgets('renders analysis screen correctly', (WidgetTester tester) async {
       await tester.pumpWidget(
         WidgetTestHelpers.wrapInMaterialApp(
-          AnalysisScreen(fen: TestPositions.startingPosition),
+          const AnalysisScreen(fen: TestPositions.startingPosition),
         ),
       );
       
@@ -28,7 +28,7 @@ void main() {
     testWidgets('shows chess board and analysis panel', (WidgetTester tester) async {
       await tester.pumpWidget(
         WidgetTestHelpers.wrapInMaterialApp(
-          AnalysisScreen(fen: TestPositions.startingPosition),
+          const AnalysisScreen(fen: TestPositions.startingPosition),
         ),
       );
       
@@ -44,7 +44,7 @@ void main() {
     testWidgets('navigation controls work', (WidgetTester tester) async {
       await tester.pumpWidget(
         WidgetTestHelpers.wrapInMaterialApp(
-          AnalysisScreen(fen: TestPositions.englishOpening),
+          const AnalysisScreen(fen: TestPositions.englishOpening),
         ),
       );
       
@@ -65,7 +65,7 @@ void main() {
     testWidgets('flip board button works', (WidgetTester tester) async {
       await tester.pumpWidget(
         WidgetTestHelpers.wrapInMaterialApp(
-          AnalysisScreen(fen: TestPositions.startingPosition),
+          const AnalysisScreen(fen: TestPositions.startingPosition),
         ),
       );
       

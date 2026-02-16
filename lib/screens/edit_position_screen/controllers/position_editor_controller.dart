@@ -1,7 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:dartchess/dartchess.dart';
-import '../../../services/dartchess_validation_service.dart';
 import '../../../services/castling_rights_detector.dart';
 
 /// Manages interactive chess position editing with real-time visual feedback
@@ -81,32 +79,25 @@ class PositionEditorController {
       if (kDebugMode) debugPrint('EditPosition: Initializing with FEN: $cleanFen');
       
       final setup = Setup.parseFen(cleanFen);
-      if (setup != null) {
-        try {
-          _position = Position.setupPosition(Rule.chess, setup);
-          _currentFen = _position!.fen;
-          if (kDebugMode) debugPrint('EditPosition: Successfully created position');
-        } catch (e) {
-          if (kDebugMode) debugPrint('EditPosition: Position invalid, but will allow editing: $e');
-          // Create fallback position while preserving original FEN for editing
-          final defaultSetup = Setup.parseFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')!;
-          _position = Position.setupPosition(Rule.chess, defaultSetup);
-          _currentFen = cleanFen;
-        }
-      } else {
-        if (kDebugMode) debugPrint('EditPosition: Could not parse FEN, using starting position');
-        final defaultSetup = Setup.parseFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')!;
-        _position = Position.setupPosition(Rule.chess, defaultSetup);
+      try {
+        _position = Position.setupPosition(Rule.chess, setup);
         _currentFen = _position!.fen;
+        if (kDebugMode) debugPrint('EditPosition: Successfully created position');
+      } catch (e) {
+        if (kDebugMode) debugPrint('EditPosition: Position invalid, but will allow editing: $e');
+        // Create fallback position while preserving original FEN for editing
+        final defaultSetup = Setup.parseFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+        _position = Position.setupPosition(Rule.chess, defaultSetup);
+        _currentFen = cleanFen;
       }
-      
+          
       _initializeCastlingRights(_currentFen);
       onStateChanged();
       
     } catch (e) {
       if (kDebugMode) debugPrint('EditPosition: Error in initialization: $e');
       // Emergency fallback to starting position
-      final defaultSetup = Setup.parseFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')!;
+      final defaultSetup = Setup.parseFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
       _position = Position.setupPosition(Rule.chess, defaultSetup);
       _currentFen = _position!.fen;
       _initializeCastlingRights(_currentFen);
@@ -163,10 +154,8 @@ class PositionEditorController {
   void _updatePositionFromFen() {
     try {
       final setup = Setup.parseFen(_currentFen);
-      if (setup != null) {
-        _position = Position.setupPosition(Rule.chess, setup);
-      }
-    } catch (e) {
+      _position = Position.setupPosition(Rule.chess, setup);
+        } catch (e) {
       if (kDebugMode) debugPrint('EditPosition: Could not update position from FEN: $e');
       // Keep existing position if update fails
     }

@@ -23,7 +23,7 @@ class AnalysisParser {
           'nodes': 0,
           'pv': [],
           'multipv': [],
-          'error': "ERROR: $errorMessage\n\nTo analyze this position:\n1. Tap \"Edit Position\" below\n2. Fix the position by adding/removing pieces\n3. Ensure both sides have exactly one king\n4. Return to analysis when position is valid",
+          'error': 'ERROR: $errorMessage\n\nTo analyze this position:\n1. Tap "Edit Position" below\n2. Fix the position by adding/removing pieces\n3. Ensure both sides have exactly one king\n4. Return to analysis when position is valid',
           'invalid_position': true,
         };
         if (fen != null) result['fen'] = fen;
@@ -64,8 +64,8 @@ class AnalysisParser {
             if (eval is num) {
               // Numeric evaluation (centipawns converted to pawns)
               final evalDouble = eval.toDouble();
-              String sign = evalDouble >= 0 ? "+" : "";
-              return "$sign${evalDouble.toStringAsFixed(2)}";
+              String sign = evalDouble >= 0 ? '+' : '';
+              return '$sign${evalDouble.toStringAsFixed(2)}';
             } else if (eval is String) {
               // String evaluation (already formatted or mate notation)
               if (eval.startsWith('M')) {
@@ -78,8 +78,8 @@ class AnalysisParser {
                 // Try to parse as number
                 final parsed = double.tryParse(eval);
                 if (parsed != null) {
-                  String sign = parsed >= 0 ? "+" : "";
-                  return "$sign${parsed.toStringAsFixed(2)}";
+                  String sign = parsed >= 0 ? '+' : '';
+                  return '$sign${parsed.toStringAsFixed(2)}';
                 } else {
                   if (kDebugMode) debugPrint('Warning: Could not parse evaluation string: $eval');
                   return eval; // Return as-is if it can't be parsed
@@ -87,7 +87,7 @@ class AnalysisParser {
               }
             } else {
               if (kDebugMode) debugPrint('Warning: Unexpected evaluation type: ${eval.runtimeType}, value: $eval');
-              return "0.00";
+              return '0.00';
             }
           }).toList();
         } catch (e) {
@@ -136,8 +136,8 @@ class AnalysisParser {
     if (isMate) {
       return "Mate in ${mateInMoves.abs()} for ${mateInMoves > 0 ? 'White' : 'Black'}";
     } else {
-      String scoreSign = evaluation >= 0 ? "+" : "";
-      return "$scoreSign${evaluation.toStringAsFixed(2)}";
+      String scoreSign = evaluation >= 0 ? '+' : '';
+      return '$scoreSign${evaluation.toStringAsFixed(2)}';
     }
   }
 }

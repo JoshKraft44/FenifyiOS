@@ -59,7 +59,7 @@ void main() {
         '\x00\x01\x02\x03',
         'A' * 100000,
         '🐴♞🏇', // Unicode chess-related emojis
-        'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' + '\x00',
+        'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' '\x00',
       ];
       
       for (final input in malformedInputs) {

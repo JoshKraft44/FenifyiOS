@@ -284,7 +284,7 @@ List<int> filterContoursByHierarchy(
     final contour = contours[i];
 
     // Check hierarchy - only top-level contours (no parent)
-    if (hierarchy.length > 0 && i < hierarchy.length) {
+    if (hierarchy.isNotEmpty && i < hierarchy.length) {
       final hierarchyVec = hierarchy[i];
       // Vec4i has: [next, previous, first_child, parent]
       // Skip if this contour has a child (not a leaf)
@@ -1038,8 +1038,8 @@ class OpenCVBoardDetector {
       }
 
       // Chess boards should have multiple lines in both directions
-      final minLines = 3; // At least 3 lines each way (flexible for various crops)
-      final maxLines = 12; // But not too many (noisy detection)
+      const minLines = 3; // At least 3 lines each way (flexible for various crops)
+      const maxLines = 12; // But not too many (noisy detection)
 
       final hGood = horizontalLines >= minLines && horizontalLines <= maxLines;
       final vGood = verticalLines >= minLines && verticalLines <= maxLines;
@@ -1062,8 +1062,8 @@ class OpenCVBoardDetector {
   /// Check for alternating light/dark checkered pattern
   static double _hasCheckeredPattern(cv.Mat gray) {
     // Sample a grid of points and check for alternating brightness
-    final rows = 8;
-    final cols = 8;
+    const rows = 8;
+    const cols = 8;
     final cellW = gray.cols / cols;
     final cellH = gray.rows / rows;
 
@@ -1418,7 +1418,7 @@ class OpenCVBoardDetector {
 
     // Draw thick lime green outline around the detected square
     final outlineColor = cv.Scalar(0, 255, 0, 255); // Lime green in BGR
-    final thickness = 8;
+    const thickness = 8;
 
     // Draw the rectangle outline
     final p1 = cv.Point(bounds.x, bounds.y);
@@ -1432,9 +1432,9 @@ class OpenCVBoardDetector {
     cv.line(overlay, p4, p1, outlineColor, thickness: thickness);
 
     // Add corner markers for extra visibility
-    final cornerSize = 20;
+    const cornerSize = 20;
     final cornerColor = cv.Scalar(255, 0, 0, 255); // Blue corners in BGR
-    final cornerThickness = 6;
+    const cornerThickness = 6;
 
     // Top-left corner
     cv.line(overlay, cv.Point(bounds.x, bounds.y), cv.Point(bounds.x + cornerSize, bounds.y), cornerColor, thickness: cornerThickness);
@@ -1463,7 +1463,7 @@ class OpenCVBoardDetector {
 
     // Draw grid lines in bright green for visibility
     final lineColor = cv.Scalar(0, 255, 0, 255); // Green in BGR
-    final thickness = 2;
+    const thickness = 2;
 
     // Draw horizontal lines (8 internal lines + 2 edges = 10 total, but we draw 9 to show 8x8 grid)
     for (int i = 0; i <= 8; i++) {

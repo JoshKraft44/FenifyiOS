@@ -1,7 +1,6 @@
 
 // test/main_test.dart - Main test runner entry point
 import 'package:flutter_test/flutter_test.dart';
-import 'test_setup.dart';
 import 'test_runners/test_suite_runner.dart';
 
 void main() {

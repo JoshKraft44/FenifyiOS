@@ -33,11 +33,11 @@ class AnalysisStatusWidget extends StatelessWidget {
         color: context.surfaceColor,
         border: Border(
           top: BorderSide(
-            color: context.borderColor, 
+            color: context.borderColor,
             width: 1.5,
           ),
           bottom: BorderSide(
-            color: context.borderColor, 
+            color: context.borderColor,
             width: 1.5,
           ),
         ),
@@ -46,40 +46,42 @@ class AnalysisStatusWidget extends StatelessWidget {
         children: [
           // Turn indicator circle
           Container(
-            width: 20, 
+            width: 20,
             height: 20,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: position.turn == Side.white 
-                ? (context.isDarkMode ? Colors.white : seasalt)
-                : (context.isDarkMode ? Colors.black : deepNavy),
+              color: position.turn == Side.white
+                  ? (context.isDarkMode ? Colors.white : seasalt)
+                  : (context.isDarkMode ? Colors.black : deepNavy),
               border: Border.all(
-                color: context.isDarkMode ? Colors.white.withOpacity(0.3) : lightBlue, 
+                color: context.isDarkMode
+                    ? Colors.white.withOpacity(0.3)
+                    : lightBlue,
                 width: 2,
               ),
             ),
           ),
           const SizedBox(width: 12),
-          
+
           // Turn text
           Text(
-            '${position.turn == Side.white ? "White" : "Black"} to move', 
+            '${position.turn == Side.white ? "White" : "Black"} to move',
             style: TextStyle(
-              fontWeight: FontWeight.w600, 
-              color: context.primaryTextColor, 
+              fontWeight: FontWeight.w600,
+              color: context.primaryTextColor,
               fontSize: 15,
             ),
           ),
-          
+
           const Spacer(),
-          
+
           // Analysis status
           if (isAnalyzing) ...[
             SizedBox(
-              width: 16, 
-              height: 16, 
+              width: 16,
+              height: 16,
               child: CircularProgressIndicator(
-                strokeWidth: 2, 
+                strokeWidth: 2,
                 valueColor: AlwaysStoppedAnimation<Color>(
                   context.isDarkMode
                       ? Colors.white.withOpacity(0.7)
@@ -89,21 +91,21 @@ class AnalysisStatusWidget extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Text(
-              'Depth $currentDepth', 
+              'Depth $currentDepth',
               style: TextStyle(
-                color: context.secondaryTextColor, 
-                fontSize: 12, 
+                color: context.secondaryTextColor,
+                fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
             ),
           ] else if (engineReady) ...[
-            Icon(Icons.check_circle_rounded, color: successGreen, size: 18),
+            const Icon(Icons.check_circle_rounded, color: successGreen, size: 18),
             const SizedBox(width: 6),
-            Text(
-              'Ready', 
+            const Text(
+              'Ready',
               style: TextStyle(
-                color: successGreen, 
-                fontSize: 12, 
+                color: successGreen,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
             ),

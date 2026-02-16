@@ -1,12 +1,9 @@
 import 'dart:async';
-import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 import 'package:dartchess/dartchess.dart';
 import '../../constants/app_constants.dart';
 import '../../core/disposable.dart';
 import '../../core/resource_manager.dart';
-import '../../core/errors/error_handler.dart';
-import '../../core/errors/app_exceptions.dart';
 import '../dartchess_validation_service.dart';
 import 'isolate/stockfish_isolate_manager.dart';
 import 'analysis/analysis_parser.dart';
@@ -110,9 +107,7 @@ class StockfishService with DisposableMixin {
   /// Validates FEN using DartChess instead of Stockfish to avoid crashes. Stockfish will crash on invalid positions.
   /// DartChess validation is better than engine queries
   Future<bool> validateFenWithDartChess(String fen) async {
-    if (_positionValidator == null) {
-      _positionValidator = PositionValidator();
-    }
+    _positionValidator ??= PositionValidator();
     return await _positionValidator!.validateFen(fen);
   }
 
@@ -159,7 +154,7 @@ class StockfishService with DisposableMixin {
       if (kDebugMode) debugPrint('ERROR: Engine initialization failed: $e');
       throw Exception('Engine failed to initialize: $e');
     } finally {
-      timeoutTimer?.cancel();
+      timeoutTimer.cancel();
       subscription.cancel();
     }
   }

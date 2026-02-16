@@ -12,9 +12,6 @@ class CastlingRightsDetector {
       if (kDebugMode) debugPrint('$_TAG: Analyzing castling rights for FEN: $fen');
       
       final setup = Setup.parseFen(fen);
-      if (setup == null) {
-        return CastlingRightsResult.invalid('Invalid FEN format');
-      }
       
       final board = setup.board;
       final result = CastlingRightsResult.empty();

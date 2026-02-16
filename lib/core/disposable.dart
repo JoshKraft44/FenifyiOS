@@ -26,7 +26,7 @@ mixin DisposableMixin implements DisposableResource {
   /// Throws if already disposed
   void checkNotDisposed() {
     if (_isDisposed) {
-      throw StateError('${runtimeType} has been disposed');
+      throw StateError('$runtimeType has been disposed');
     }
   }
   

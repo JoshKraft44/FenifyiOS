@@ -1,9 +1,7 @@
 // test/ai_ml/ml_model_tests.dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fenify/services/image_processing/image_processor.dart';
 import '../test_setup.dart';
 import '../mocks/mock_services.dart';
-import '../fixtures/test_positions.dart';
 
 void main() {
   setUpAll(() {

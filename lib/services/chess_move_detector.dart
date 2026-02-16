@@ -87,7 +87,7 @@ class ChessMoveDetector {
                     'promotion': move['promotion'],
                   });
                   
-                  if (moveResult != null && tempChess2.fen == newFen) {
+                  if (tempChess2.fen == newFen) {
                     moveFromSquare = move['from'] as String?;
                     moveToSquare = move['to'] as String?;
                     if (kDebugMode) debugPrint('Found matching move: $moveFromSquare -> $moveToSquare');

@@ -16,7 +16,7 @@ void main() {
   group('Accessibility Tests', () {
     testWidgets('home screen has proper semantics', (WidgetTester tester) async {
       await tester.pumpWidget(
-        WidgetTestHelpers.wrapInMaterialApp(HomeScreen()),
+        WidgetTestHelpers.wrapInMaterialApp(const HomeScreen()),
       );
       
       // Test semantic labels
@@ -28,7 +28,7 @@ void main() {
     testWidgets('analysis screen has accessible controls', (WidgetTester tester) async {
       await tester.pumpWidget(
         WidgetTestHelpers.wrapInMaterialApp(
-          AnalysisScreen(fen: TestPositions.startingPosition),
+          const AnalysisScreen(fen: TestPositions.startingPosition),
         ),
       );
       
@@ -44,7 +44,7 @@ void main() {
     testWidgets('chess board squares have proper semantics', (WidgetTester tester) async {
       await tester.pumpWidget(
         WidgetTestHelpers.wrapInMaterialApp(
-          ChessBoardWidget(fen: TestPositions.startingPosition),
+          const ChessBoardWidget(fen: TestPositions.startingPosition),
         ),
       );
       
@@ -56,7 +56,7 @@ void main() {
 
     testWidgets('buttons have minimum touch target size', (WidgetTester tester) async {
       await tester.pumpWidget(
-        WidgetTestHelpers.wrapInMaterialApp(HomeScreen()),
+        WidgetTestHelpers.wrapInMaterialApp(const HomeScreen()),
       );
       
       final buttonFinders = [
@@ -77,7 +77,7 @@ void main() {
 
     testWidgets('text has sufficient contrast', (WidgetTester tester) async {
       await tester.pumpWidget(
-        WidgetTestHelpers.wrapInMaterialApp(HomeScreen()),
+        WidgetTestHelpers.wrapInMaterialApp(const HomeScreen()),
       );
       
       // Test various text elements for contrast (implementation would depend on theme)

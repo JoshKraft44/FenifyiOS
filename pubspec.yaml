@@ -44,6 +44,7 @@ dependencies:
 
 
 
+  chess: any
 dev_dependencies:
 
   flutter_test:

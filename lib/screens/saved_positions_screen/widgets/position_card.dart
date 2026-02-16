@@ -4,7 +4,6 @@ import 'package:dartchess/dartchess.dart';
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import '../../../models/chess_position.dart';
 import '../../../constants/app_colors.dart';
-import '../../../constants/app_dimensions.dart';
 import '../../../providers/theme_provider.dart';
 
 class PositionCard extends StatelessWidget {
@@ -68,32 +67,32 @@ class PositionCard extends StatelessWidget {
                         fen: position.fen,
                         settings: ChessboardSettings(
                           colorScheme: context.isDarkMode
-                            ? ChessboardColorScheme(
-                                lightSquare: const Color(0xFF5a5a5a), // Brighter medium gray
-                                darkSquare: const Color(0xFF404040),   // Brighter darker gray
+                            ? const ChessboardColorScheme(
+                                lightSquare: Color(0xFF5a5a5a), // Brighter medium gray
+                                darkSquare: Color(0xFF404040),   // Brighter darker gray
                                 background: SolidColorChessboardBackground(
-                                  lightSquare: const Color(0xFF5a5a5a),
-                                  darkSquare: const Color(0xFF404040),
+                                  lightSquare: Color(0xFF5a5a5a),
+                                  darkSquare: Color(0xFF404040),
                                   coordinates: false,
                                 ),
                                 whiteCoordBackground: SolidColorChessboardBackground(
-                                  lightSquare: const Color(0xFF5a5a5a),
-                                  darkSquare: const Color(0xFF404040),
+                                  lightSquare: Color(0xFF5a5a5a),
+                                  darkSquare: Color(0xFF404040),
                                   coordinates: true,
                                 ),
                                 blackCoordBackground: SolidColorChessboardBackground(
-                                  lightSquare: const Color(0xFF5a5a5a),
-                                  darkSquare: const Color(0xFF404040),
+                                  lightSquare: Color(0xFF5a5a5a),
+                                  darkSquare: Color(0xFF404040),
                                   coordinates: true,
                                 ),
                                 lastMove: HighlightDetails(
-                                  solidColor: const Color(0xFF656565),
+                                  solidColor: Color(0xFF656565),
                                 ),
                                 selected: HighlightDetails(
-                                  solidColor: const Color(0xFF707070),
+                                  solidColor: Color(0xFF707070),
                                 ),
-                                validMoves: const Color(0xFF909090),
-                                validPremoves: const Color(0xFF808080),
+                                validMoves: Color(0xFF909090),
+                                validPremoves: Color(0xFF808080),
                               )
                             : ChessboardColorScheme.blue,
                         ),

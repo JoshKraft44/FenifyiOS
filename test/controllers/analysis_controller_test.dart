@@ -1,10 +1,8 @@
 // test/controllers/analysis_controller_test.dart
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fenify/screens/analysis_screen/controllers/analysis_controller.dart';
-import 'package:fenify/screens/analysis_screen/models/analysis_state.dart';
 import '../test_setup.dart';
 import '../fixtures/test_positions.dart';
-import '../mocks/mock_services.dart';
 
 void main() {
   setUpAll(() {
@@ -58,7 +56,7 @@ void main() {
       await controller.initialize();
       
       // Give a moment for the controller to process the invalid FEN
-      await Future.delayed(Duration(milliseconds: 200));
+      await Future.delayed(const Duration(milliseconds: 200));
       
       expect(controller.isInvalidPosition, isTrue);
       expect(stateChanged, isTrue);
@@ -111,7 +109,7 @@ void main() {
       controller.restartAnalysis(); // Don't await to avoid timeout
       
       // Give a moment for restart to begin
-      await Future.delayed(Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 100));
       
       expect(stateChanged, isTrue);
     });
