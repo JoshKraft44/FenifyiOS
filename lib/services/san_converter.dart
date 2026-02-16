@@ -41,14 +41,12 @@ class SanConverter {
 
       // Check if it's a valid move in this position
       if (!position.isLegal(move)) {
-        if (kDebugMode && false) debugPrint('Invalid move for SAN conversion: $uciMove in position $currentFen');
         return uciMove;
       }
 
       // Convert to SAN using dartchess
       final sanResult = position.makeSan(move);
       return sanResult.$2;
-
     } catch (e) {
       if (kDebugMode) debugPrint('Error converting UCI to SAN: $uciMove, error: $e');
       return uciMove; // Fallback to UCI notation
@@ -95,7 +93,8 @@ class SanConverter {
 
           // Check if it's a valid move
           if (!position.isLegal(move)) {
-            if (kDebugMode && false) debugPrint('Move validation failed for: $uciMove (continuing with UCI)');
+            debugPrint(
+                'Move validation failed for: $uciMove (continuing with UCI)');
             sanMoves.add(uciMove); // Keep UCI if invalid
             break; // Stop processing on invalid moves
           }
@@ -108,7 +107,8 @@ class SanConverter {
           position = sanResult.$1;
 
         } catch (e) {
-          if (kDebugMode) debugPrint('Error converting move $uciMove to SAN: $e');
+          if (kDebugMode)
+            debugPrint('Error converting move $uciMove to SAN: $e');
           sanMoves.add(uciMove); // Fallback to UCI
         }
       }

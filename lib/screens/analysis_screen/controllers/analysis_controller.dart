@@ -21,7 +21,7 @@ import '../../../utils/analysis_throttler.dart';
 class AnalysisController {
   final String initialFen;
   final VoidCallback onStateChanged;
-  
+
   // Services
   late final StockfishService _stockfishService;
   final StorageService _storageService = StorageService();
@@ -53,7 +53,6 @@ class AnalysisController {
   // Variation tree state
   MoveNode? _variationTreeRoot;
   MoveNode? _currentVariationNode;
-
 
   AnalysisController({
     required this.initialFen,
@@ -88,15 +87,15 @@ class AnalysisController {
   String get analysisText => _state.analysisText;
   String? get lastError => _state.lastError;
   String get bestMove => _state.bestMove;
-  
+
   int get currentMoveIndex => _state.currentMoveIndex;
   int get gameHistoryLength => _state.gameHistory.length;
   int get currentDepth => _state.currentDepth;
   int get mateInMoves => _state.mateInMoves;
-  
+
   double get evaluationScore => _state.evaluationScore;
   bool get isMateScore => _state.isMateScore;
-  
+
   List<String> get principalVariation => _state.principalVariation;
   List<String> get moveEvaluations => _state.moveEvaluations;
   List<List<String>> get multiPV => _state.multiPV;
@@ -115,7 +114,7 @@ class AnalysisController {
     _currentAnalysisId = 0;
     _lastAnalysisStart = null;
     _lastAnalyzedFen = null;
-    
+
     // Cancel any existing timers and subscriptions
     _retryTimer?.cancel();
     _debounceTimer?.cancel();
@@ -123,23 +122,30 @@ class AnalysisController {
     _analysisSubscription = null;
 
     _state = _state.copyWith(
-      originalFen: initialFen.isNotEmpty ? initialFen : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-      currentFen: initialFen.isNotEmpty ? initialFen : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+      originalFen: initialFen.isNotEmpty
+          ? initialFen
+          : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+      currentFen: initialFen.isNotEmpty
+          ? initialFen
+          : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
     );
-    
-    if (kDebugMode) debugPrint('INIT: Fresh controller initialization - Analysis ID reset to 0');
+
+    if (kDebugMode)
+      debugPrint(
+          'INIT: Fresh controller initialization - Analysis ID reset to 0');
 
     try {
       await _initializePositions();
       _initializeVariationTree();
       _notifyStateChanged();
-      
+
       // Check state after initialization is complete (no timer race condition)
       if (!_disposed) {
         if (_state.isInvalidPosition) {
           _state = _state.copyWith(
             isInitializing: false,
-            analysisText: "This position violates chess rules and cannot be analyzed.",
+            analysisText:
+                "This position violates chess rules and cannot be analyzed.",
             isAnalyzing: false,
             hasError: false,
           );
@@ -159,28 +165,30 @@ class AnalysisController {
 
   Future<void> _initializePositions() async {
     final startingFen = _state.currentFen;
-    
+
     try {
       final cleanFen = startingFen.replaceAll(RegExp(r' INVALID_\w+'), '');
-      
+
       // Initialize chess engines
       _chess = chess_lib.Chess.fromFEN(cleanFen);
-      
+
       final setup = Setup.parseFen(cleanFen);
       if (setup == null) {
         throw Exception('Invalid FEN format');
       }
-      
+
       _position = Position.setupPosition(Rule.chess, setup);
-      
+
       final canonicalFen = _position!.fen;
       if (kDebugMode) debugPrint('INIT: Original FEN: $cleanFen');
       if (kDebugMode) debugPrint('INIT: Canonical FEN: $canonicalFen');
-      
+
       // Clear all analysis state when initializing new position
       _state = _state.copyWith(
-        currentFen: canonicalFen,  // Use canonical FEN
-        gameHistory: [{'fen': canonicalFen}],  // Store canonical FEN
+        currentFen: canonicalFen, // Use canonical FEN
+        gameHistory: [
+          {'fen': canonicalFen}
+        ], // Store canonical FEN
         currentMoveIndex: 0,
         isInvalidPosition: false,
         // Clear analysis state
@@ -203,14 +211,18 @@ class AnalysisController {
         analysisText: "Position loaded. Starting analysis...",
       );
 
-      if (kDebugMode) debugPrint('Initialized with canonical FEN: $canonicalFen');
+      if (kDebugMode)
+        debugPrint('Initialized with canonical FEN: $canonicalFen');
     } catch (e) {
-      if (kDebugMode) debugPrint('Position is invalid but preserving for editing: $e');
-      
+      if (kDebugMode)
+        debugPrint('Position is invalid but preserving for editing: $e');
+
       _state = _state.copyWith(
         isInvalidPosition: true,
         currentFen: startingFen,
-        gameHistory: [{'fen': startingFen}],
+        gameHistory: [
+          {'fen': startingFen}
+        ],
         currentMoveIndex: 0,
         // Clear analysis state for invalid positions too
         evaluationScore: 0.0,
@@ -230,14 +242,16 @@ class AnalysisController {
         isAnalyzing: false,
         hasError: false,
       );
-      
+
       // For invalid positions, try to create a chess_lib.Chess object that can display the FEN
       try {
         // Create a fallback chess object that shows the invalid position
-        _chess = chess_lib.Chess.fromFEN('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+        _chess = chess_lib.Chess.fromFEN(
+            'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
         // Then manually set the FEN to the invalid one for display purposes
         // This is a workaround to show the invalid position on the board
-        final fallbackSetup = Setup.parseFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+        final fallbackSetup = Setup.parseFen(
+            'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
         if (fallbackSetup != null) {
           _position = Position.setupPosition(Rule.chess, fallbackSetup);
         }
@@ -252,7 +266,8 @@ class AnalysisController {
       final startingFen = _state.currentFen;
       _variationTreeRoot = MoveNode.fromFen(startingFen);
       _currentVariationNode = _variationTreeRoot;
-      if (kDebugMode) debugPrint('VARIATION_TREE: Initialized with FEN: $startingFen');
+      if (kDebugMode)
+        debugPrint('VARIATION_TREE: Initialized with FEN: $startingFen');
     } catch (e) {
       if (kDebugMode) debugPrint('VARIATION_TREE: Failed to initialize: $e');
       _variationTreeRoot = null;
@@ -271,16 +286,20 @@ class AnalysisController {
     _notifyStateChanged();
 
     try {
-      if (kDebugMode) debugPrint('INIT: Starting fresh Stockfish initialization...');
-      
+      if (kDebugMode)
+        debugPrint('INIT: Starting fresh Stockfish initialization...');
+
       // Restart engine completely for clean state
-      if (kDebugMode) debugPrint('INIT: Restarting Stockfish engine for clean state...');
+      if (kDebugMode)
+        debugPrint('INIT: Restarting Stockfish engine for clean state...');
 
       try {
         await _stockfishService.restartEngine();
-        if (kDebugMode) debugPrint('INIT: Engine restart completed successfully');
+        if (kDebugMode)
+          debugPrint('INIT: Engine restart completed successfully');
       } catch (e) {
-        if (kDebugMode) debugPrint('INIT: Error during engine restart (continuing): $e');
+        if (kDebugMode)
+          debugPrint('INIT: Error during engine restart (continuing): $e');
         // Fallback to just resetting analysis ID and reinitializing
         _stockfishService.resetAnalysisId();
         await _stockfishService.initialize();
@@ -297,13 +316,14 @@ class AnalysisController {
       _notifyStateChanged();
 
       await Future.delayed(Duration(milliseconds: 1000));
-      
+
       if (!_disposed && !_state.isInvalidPosition) {
         await _startAnalysis();
       }
     } catch (e) {
       if (!_disposed) {
-        if (kDebugMode) debugPrint('ERROR: Failed to initialize chess engine: $e');
+        if (kDebugMode)
+          debugPrint('ERROR: Failed to initialize chess engine: $e');
         _setError('Failed to initialize chess engine: $e');
       }
     }
@@ -324,11 +344,15 @@ class AnalysisController {
 
       // Sync analysis ID with service (it will be incremented when stream starts)
       _currentAnalysisId = _stockfishService.currentAnalysisId + 1;
-      if (kDebugMode) debugPrint('INITIAL: Starting initial analysis session ID: $_currentAnalysisId');
-      
+      if (kDebugMode)
+        debugPrint(
+            'INITIAL: Starting initial analysis session ID: $_currentAnalysisId');
+
       // Get Fen
       final currentFen = _position?.fen ?? _state.currentFen;
-      if (kDebugMode) debugPrint('INITIAL: Starting analysis for FEN: $currentFen (MultiPV: $_multiPVLines)');
+      if (kDebugMode)
+        debugPrint(
+            'INITIAL: Starting analysis for FEN: $currentFen (MultiPV: $_multiPVLines)');
 
       final analysisStream = _stockfishService.startContinuousAnalysis(
         currentFen,
@@ -348,7 +372,9 @@ class AnalysisController {
           // Double-check analysis ID to prevent processing stale data
           final analysisId = analysisData['analysisId'];
           if (analysisId != null && analysisId != _currentAnalysisId) {
-            if (kDebugMode) debugPrint('INITIAL: Dropping stale initial analysis data for ID: $analysisId (current: $_currentAnalysisId)');
+            if (kDebugMode)
+              debugPrint(
+                  'INITIAL: Dropping stale initial analysis data for ID: $analysisId (current: $_currentAnalysisId)');
             return;
           }
 
@@ -376,7 +402,9 @@ class AnalysisController {
         },
         onDone: () {
           if (!_disposed) {
-            if (kDebugMode) debugPrint('INITIAL: Initial analysis stream completed for ID: $_currentAnalysisId');
+            if (kDebugMode)
+              debugPrint(
+                  'INITIAL: Initial analysis stream completed for ID: $_currentAnalysisId');
             _state = _state.copyWith(isAnalyzing: false);
             _notifyStateChanged();
           }
@@ -395,8 +423,11 @@ class AnalysisController {
       // Early exit if disposed
       if (_disposed) return;
 
-      if (data['analysisId'] != null && data['analysisId'] != _currentAnalysisId) {
-        if (kDebugMode) debugPrint('SYNC: Discarding analysis for stale id: ${data['analysisId']} (current: $_currentAnalysisId)');
+      if (data['analysisId'] != null &&
+          data['analysisId'] != _currentAnalysisId) {
+        if (kDebugMode)
+          debugPrint(
+              'SYNC: Discarding analysis for stale id: ${data['analysisId']} (current: $_currentAnalysisId)');
         return;
       }
 
@@ -405,18 +436,23 @@ class AnalysisController {
         final incomingFen = data['fen'] as String;
         final currentCanonicalFen = _position?.fen ?? _state.currentFen;
         if (incomingFen != currentCanonicalFen) {
-          if (kDebugMode) debugPrint('SYNC: Discarding analysis for stale FEN:');
+          if (kDebugMode)
+            debugPrint('SYNC: Discarding analysis for stale FEN:');
           if (kDebugMode) debugPrint('  Incoming: $incomingFen');
           if (kDebugMode) debugPrint('  Current:  $currentCanonicalFen');
-          if (kDebugMode) debugPrint('  Source: ${_position != null ? "dartchess" : "state"}');
+          if (kDebugMode)
+            debugPrint(
+                '  Source: ${_position != null ? "dartchess" : "state"}');
           return;
         }
       }
 
-      if (data.containsKey('invalid_position') && data['invalid_position'] == true) {
+      if (data.containsKey('invalid_position') &&
+          data['invalid_position'] == true) {
         final errorMessage = data['error'] as String? ?? 'Position is invalid';
         _state = _state.copyWith(
-          analysisText: "This position violates chess rules and cannot be analyzed.",
+          analysisText:
+              "This position violates chess rules and cannot be analyzed.",
           isAnalyzing: false,
           hasError: false,
         );
@@ -433,18 +469,31 @@ class AnalysisController {
       final bestMoveUci = data['bestMove'] as String? ?? '';
       final currentDepth = data['depth'] as int? ?? 0;
 
+      // Skip shallow depths when we already have prior analysis data,
+      // so the UI doesn't flash through low depths on every move change
+      const minDepthForUpdate = 10;
+      if (currentDepth < minDepthForUpdate &&
+          _state.principalVariation.isNotEmpty) {
+        return;
+      }
+
       // Convert best move from UCI to SAN using dartchess FEN (source of truth)
       final currentFenForSan = _position?.fen ?? _state.currentFen;
-      final bestMove = bestMoveUci.isNotEmpty 
-          ? _sanConverter.formatBestMoveWithNumber(bestMoveUci, currentFenForSan)
+      final bestMove = bestMoveUci.isNotEmpty
+          ? _sanConverter.formatBestMoveWithNumber(
+              bestMoveUci, currentFenForSan)
           : '';
 
       final pvData = data['principalVariation'];
-      final principalVariationUci = pvData is List ? pvData.cast<String>() : <String>[];
-      
+      final principalVariationUci =
+          pvData is List ? pvData.cast<String>() : <String>[];
+
       // Convert principal variation to SAN using dartchess FEN (source of truth)
       final principalVariation = principalVariationUci.isNotEmpty
-          ? [_sanConverter.formatPrincipalVariation(principalVariationUci, currentFenForSan)]
+          ? [
+              _sanConverter.formatPrincipalVariation(
+                  principalVariationUci, currentFenForSan)
+            ]
           : <String>[];
 
       final multiPVData = data['multiPV'];
@@ -461,7 +510,9 @@ class AnalysisController {
               final uciMoves = pv.cast<String>();
               if (uciMoves.isNotEmpty) {
                 // Convert to SAN and format as a single string using dartchess FEN
-                final sanFormatted = _sanConverter.formatPrincipalVariation(uciMoves, currentFenForSan, maxMoves: 6);
+                final sanFormatted = _sanConverter.formatPrincipalVariation(
+                    uciMoves, currentFenForSan,
+                    maxMoves: 6);
                 return sanFormatted.isNotEmpty ? [sanFormatted] : uciMoves;
               }
             }
@@ -483,16 +534,17 @@ class AnalysisController {
                   return "$sign${evalDouble.toStringAsFixed(2)}";
                 }
               } else if (eval is String) {
-                // String evaluation 
+                // String evaluation
                 final trimmed = eval.trim();
-                
+
                 // Check if it's already a formatted mate score or evaluation
-                if (trimmed.startsWith('M') || 
-                    trimmed.contains('mate') || 
-                    (trimmed.contains('+') || trimmed.contains('-')) && trimmed.length <= 6) {
+                if (trimmed.startsWith('M') ||
+                    trimmed.contains('mate') ||
+                    (trimmed.contains('+') || trimmed.contains('-')) &&
+                        trimmed.length <= 6) {
                   return trimmed;
                 }
-                
+
                 // Try to parse as a number
                 final parsed = double.tryParse(trimmed);
                 if (parsed != null) {
@@ -503,28 +555,40 @@ class AnalysisController {
                     return "$sign${parsed.toStringAsFixed(2)}";
                   }
                 } else {
-                  if (kDebugMode) debugPrint('Warning: Could not parse evaluation string: "$eval"');
+                  if (kDebugMode)
+                    debugPrint(
+                        'Warning: Could not parse evaluation string: "$eval"');
                   return trimmed.isNotEmpty ? trimmed : "0.00";
                 }
               } else {
-                if (kDebugMode) debugPrint('Warning: Unexpected evaluation type: ${eval.runtimeType}, value: $eval');
+                if (kDebugMode)
+                  debugPrint(
+                      'Warning: Unexpected evaluation type: ${eval.runtimeType}, value: $eval');
                 return "0.00";
               }
             } catch (e) {
-              if (kDebugMode) debugPrint('Error parsing individual evaluation: $eval, error: $e');
+              if (kDebugMode)
+                debugPrint(
+                    'Error parsing individual evaluation: $eval, error: $e');
               return "0.00";
             }
           }).toList();
-          
+
           // print('Successfully parsed ${moveEvaluations.length} evaluations: $moveEvaluations');
         } catch (e) {
           if (kDebugMode) debugPrint('Error parsing multiPV data: $e');
-          if (kDebugMode) debugPrint('multiPVData type: ${multiPVData.runtimeType}, length: ${multiPVData.length}');
-          if (kDebugMode) debugPrint('multiEvalData type: ${multiEvalData.runtimeType}, length: ${multiEvalData.length}');
+          if (kDebugMode)
+            debugPrint(
+                'multiPVData type: ${multiPVData.runtimeType}, length: ${multiPVData.length}');
+          if (kDebugMode)
+            debugPrint(
+                'multiEvalData type: ${multiEvalData.runtimeType}, length: ${multiEvalData.length}');
           if (multiEvalData.isNotEmpty) {
             if (kDebugMode) debugPrint('Sample multiEval items:');
             for (int i = 0; i < math.min(3, multiEvalData.length); i++) {
-              if (kDebugMode) debugPrint('  [$i]: ${multiEvalData[i]} (type: ${multiEvalData[i].runtimeType})');
+              if (kDebugMode)
+                debugPrint(
+                    '  [$i]: ${multiEvalData[i]} (type: ${multiEvalData[i].runtimeType})');
             }
           }
           multiPV = [];
@@ -554,7 +618,7 @@ class AnalysisController {
     final highlightedSquares = <Square>{};
     Square? lastMoveFrom;
     Square? lastMoveTo;
-    
+
     if (_state.bestMoveUci.isNotEmpty && _state.bestMoveUci.length >= 4) {
       try {
         final fromSquare = Square.fromName(_state.bestMoveUci.substring(0, 2));
@@ -568,7 +632,7 @@ class AnalysisController {
         if (kDebugMode) debugPrint('Error creating move highlight: $e');
       }
     }
-    
+
     // Add check highlighting
     if (_position?.isCheck == true) {
       final kingSquare = _findKingSquare(_position!.turn);
@@ -591,41 +655,39 @@ class AnalysisController {
     }
 
     final shapes = <Shape>[];
-    
+
     // Add best move arrow
     if (_state.bestMoveUci.isNotEmpty && _state.bestMoveUci.length >= 4) {
       try {
         final fromSquare = Square.fromName(_state.bestMoveUci.substring(0, 2));
         final toSquare = Square.fromName(_state.bestMoveUci.substring(2, 4));
-        
+
         final bestMoveArrow = Arrow(
           orig: fromSquare,
           dest: toSquare,
           color: arrowColor ?? AppColors.successGreen,
           scale: 1.0,
         );
-        
+
         shapes.add(bestMoveArrow);
         // print('Added best move arrow: ${fromSquare.name} -> ${toSquare.name}');
       } catch (e) {
         if (kDebugMode) debugPrint('Error creating best move arrow: $e');
       }
     }
-    
+
     _state = _state.copyWith(boardShapes: shapes.toISet());
   }
 
   Square? _findKingSquare(Side color) {
     if (_position == null) return null;
-    
+
     for (int file = 0; file < 8; file++) {
       for (int rank = 0; rank < 8; rank++) {
         final square = Square.fromCoords(File.values[file], Rank.values[rank]);
         final piece = _position!.board.pieceAt(square);
-        
-        if (piece != null && 
-            piece.role == Role.king && 
-            piece.color == color) {
+
+        if (piece != null && piece.role == Role.king && piece.color == color) {
           return square;
         }
       }
@@ -671,7 +733,8 @@ class AnalysisController {
 
     if (kDebugMode) {
       debugPrint('POWER_SAVE: MultiPV toggled to $_multiPVLines lines');
-      debugPrint('POWER_SAVE: CPU load ${_showAllVariations ? "increased" : "reduced"} by ~66%');
+      debugPrint(
+          'POWER_SAVE: CPU load ${_showAllVariations ? "increased" : "reduced"} by ~66%');
     }
 
     // Restart analysis with new MultiPV setting
@@ -688,10 +751,10 @@ class AnalysisController {
       // More translucent muted dark blue for dark mode
       arrowColor = const Color(0xCC4A7C8A); // Semi-transparent muted dark blue
     } else {
-      // Translucent charcoal for light mode  
+      // Translucent charcoal for light mode
       arrowColor = const Color(0x80404040); // Semi-transparent dark gray
     }
-    
+
     _updateBestMoveArrows(arrowColor: arrowColor);
     _notifyStateChanged();
   }
@@ -711,7 +774,10 @@ class AnalysisController {
 
   /// Resume analysis (called when app returns to foreground and view is visible)
   Future<void> resumeAnalysis() async {
-    if (_state.engineReady && !_state.isAnalyzing && !_state.hasError && !_state.isInvalidPosition) {
+    if (_state.engineReady &&
+        !_state.isAnalyzing &&
+        !_state.hasError &&
+        !_state.isInvalidPosition) {
       if (kDebugMode) debugPrint('POWER_SAVE: Resuming analysis');
       await _analyzePosition();
     }
@@ -725,7 +791,8 @@ class AnalysisController {
       case AppLifecycleState.detached:
         // App is going to background - suspend all analysis
         _isAppInBackground = true;
-        if (kDebugMode) debugPrint('POWER_SAVE: App going to background, killing analysis');
+        if (kDebugMode)
+          debugPrint('POWER_SAVE: App going to background, killing analysis');
         pauseAnalysis();
         break;
       case AppLifecycleState.resumed:
@@ -744,7 +811,8 @@ class AnalysisController {
   /// Set visibility of analysis view
   void setAnalysisViewVisible(bool visible) {
     _isAnalysisViewVisible = visible;
-    if (kDebugMode) debugPrint('POWER_SAVE: Analysis view visibility: $visible');
+    if (kDebugMode)
+      debugPrint('POWER_SAVE: Analysis view visibility: $visible');
 
     if (visible && !_isAppInBackground) {
       // View became visible and app is in foreground - resume analysis
@@ -764,7 +832,9 @@ class AnalysisController {
 
     // Don't start analysis if app is in background or view is not visible
     if (_isAppInBackground || !_isAnalysisViewVisible) {
-      if (kDebugMode) debugPrint('POWER_SAVE: Skipping analysis (background=$_isAppInBackground, visible=$_isAnalysisViewVisible)');
+      if (kDebugMode)
+        debugPrint(
+            'POWER_SAVE: Skipping analysis (background=$_isAppInBackground, visible=$_isAnalysisViewVisible)');
       return;
     }
 
@@ -787,14 +857,14 @@ class AnalysisController {
       try {
         await _analysisSubscription?.cancel();
         _analysisSubscription = null;
-        
+
         if (_stockfishService.isAnalyzing) {
           await _stockfishService.stopAnalysis();
         }
-        
+
         // Reset analysis state
         _lastAnalyzedFen = null;
-        
+
         // Very short delay to let Stockfish process the stop command
         await Future.delayed(const Duration(milliseconds: 50));
       } catch (e) {
@@ -816,18 +886,23 @@ class AnalysisController {
     final fenParts = currentFen.split(' ');
     final currentTurn = fenParts.length > 1 ? fenParts[1] : 'unknown';
 
-    if (kDebugMode) debugPrint('CONTROLLER_ANALYSIS: Starting analysis for FEN=$currentFen, Turn=$currentTurn');
-    
+    if (kDebugMode)
+      debugPrint(
+          'CONTROLLER_ANALYSIS: Starting analysis for FEN=$currentFen, Turn=$currentTurn');
+
     // Simplified deduplication check
     if (_state.isAnalyzing && _lastAnalyzedFen == currentFen) {
-      if (kDebugMode) debugPrint('ANALYSIS: Already analyzing FEN: $currentFen, skipping duplicate request');
+      if (kDebugMode)
+        debugPrint(
+            'ANALYSIS: Already analyzing FEN: $currentFen, skipping duplicate request');
       return;
     }
 
-
     // Get current analysis ID from service (incremented when stream starts)
     _currentAnalysisId = _stockfishService.currentAnalysisId + 1;
-    if (kDebugMode) debugPrint('ANALYSIS: Starting new analysis session ID: $_currentAnalysisId');
+    if (kDebugMode)
+      debugPrint(
+          'ANALYSIS: Starting new analysis session ID: $_currentAnalysisId');
 
     _retryTimer?.cancel();
     await _analysisSubscription?.cancel();
@@ -841,13 +916,14 @@ class AnalysisController {
         // Give Stockfish time to actually stop before starting new analysis
         await Future.delayed(const Duration(milliseconds: 50));
       } catch (e) {
-        if (kDebugMode) debugPrint('ANALYSIS: Error stopping previous analysis: $e');
+        if (kDebugMode)
+          debugPrint('ANALYSIS: Error stopping previous analysis: $e');
       }
     }
 
     if (_disposed) return;
 
-    // Clear ALL analysis state when starting new analysis
+    // Mark as analyzing but keep previous analysis data visible
     _state = _state.copyWith(
       isAnalyzing: true,
       analysisText: "Analyzing position...",
@@ -855,16 +931,6 @@ class AnalysisController {
       highlightedSquares: <Square>{},
       boardShapes: <Shape>{}.lock,
       hasError: false,
-      // Clear all analysis data
-      evaluationScore: 0.0,
-      isMateScore: false,
-      mateInMoves: 0,
-      bestMove: '',
-      bestMoveUci: '',
-      currentDepth: 0,
-      principalVariation: <String>[],
-      moveEvaluations: <String>[],
-      multiPV: <List<String>>[],
       lastMoveFrom: null,
       lastMoveTo: null,
     );
@@ -873,7 +939,9 @@ class AnalysisController {
     try {
       // Get FEN
       final currentFen = _position?.fen ?? _state.currentFen;
-      if (kDebugMode) debugPrint('ANALYSIS: Starting analysis for canonical FEN: $currentFen (MultiPV: $_multiPVLines)');
+      if (kDebugMode)
+        debugPrint(
+            'ANALYSIS: Starting analysis for canonical FEN: $currentFen (MultiPV: $_multiPVLines)');
 
       // Set the FEN being analyzed
       _lastAnalyzedFen = currentFen;
@@ -884,9 +952,10 @@ class AnalysisController {
       // StockfishService increments its analysis ID when the returned stream is istened to
       final expectedStockfishId = _stockfishService.currentAnalysisId + 1;
       if (expectedStockfishId != _currentAnalysisId) {
-        if (kDebugMode) debugPrint('ANALYSIS: ID mismatch - Controller: $_currentAnalysisId, Expected Stockfish: $expectedStockfishId');
+        if (kDebugMode)
+          debugPrint(
+              'ANALYSIS: ID mismatch - Controller: $_currentAnalysisId, Expected Stockfish: $expectedStockfishId');
       }
-
 
       // Feed analysis stream to throttler and subscribe to throttled output
       final rawSubscription2 = analysisStream.listen((data) {
@@ -902,7 +971,9 @@ class AnalysisController {
           // Double-check analysis ID to prevent processing stale data
           final analysisId = analysisData['analysisId'];
           if (analysisId != null && analysisId != _currentAnalysisId) {
-            if (kDebugMode) debugPrint('ANALYSIS: Dropping stale analysis data for ID: $analysisId (current: $_currentAnalysisId)');
+            if (kDebugMode)
+              debugPrint(
+                  'ANALYSIS: Dropping stale analysis data for ID: $analysisId (current: $_currentAnalysisId)');
             return;
           }
 
@@ -926,7 +997,9 @@ class AnalysisController {
         },
         onDone: () {
           if (!_disposed) {
-            if (kDebugMode) debugPrint('ANALYSIS: Stream completed for ID: $_currentAnalysisId');
+            if (kDebugMode)
+              debugPrint(
+                  'ANALYSIS: Stream completed for ID: $_currentAnalysisId');
             _state = _state.copyWith(isAnalyzing: false);
             _lastAnalyzedFen = null; // Clear to allow new analysis
             _notifyStateChanged();
@@ -943,60 +1016,54 @@ class AnalysisController {
   // Navigation methods
   void goToStart() {
     if (_state.isInvalidPosition || _state.gameHistory.isEmpty) return;
-    
+
     try {
       final historicalFen = _state.gameHistory.first['fen'] as String;
-      if (kDebugMode) debugPrint('🏁 NAV: Going to start - Historical FEN: $historicalFen');
-      
+      if (kDebugMode)
+        debugPrint('🏁 NAV: Going to start - Historical FEN: $historicalFen');
+
       // Parse with dartchess to get canonical FEN
       final setup = Setup.parseFen(historicalFen);
       if (setup == null) {
-        if (kDebugMode) debugPrint('NAV: Invalid FEN in history: $historicalFen');
+        if (kDebugMode)
+          debugPrint('NAV: Invalid FEN in history: $historicalFen');
         return;
       }
-      
+
       // Create canonical position and FEN
       _position = Position.setupPosition(Rule.chess, setup);
       final canonicalFen = _position!.fen;
       if (kDebugMode) debugPrint('NAV: Canonical FEN: $canonicalFen');
-      if (kDebugMode) debugPrint('NAV: FEN normalization: ${historicalFen == canonicalFen ? "identical" : "normalized"}');
-      
+      if (kDebugMode)
+        debugPrint(
+            'NAV: FEN normalization: ${historicalFen == canonicalFen ? "identical" : "normalized"}');
+
       // Sync chess_lib to canonical FEN
       try {
         _chess = chess_lib.Chess.fromFEN(canonicalFen);
       } catch (e) {
         if (kDebugMode) debugPrint('Warning: Could not sync chess_lib: $e');
       }
-      
+
       // Update variation tree to root
       if (_variationTreeRoot != null) {
         _currentVariationNode = _variationTreeRoot;
       }
 
-      // Update state with canonical FEN
+      // Update state with canonical FEN, keep previous analysis data visible
       _state = _state.copyWith(
         currentMoveIndex: 0,
-        currentFen: canonicalFen,  // Use canonical FEN, not historical
+        currentFen: canonicalFen,
         showBestMove: false,
         highlightedSquares: <Square>{},
         boardShapes: <Shape>{}.lock,
-        // Clear analysis data
-        evaluationScore: 0.0,
-        isMateScore: false,
-        mateInMoves: 0,
-        bestMove: '',
-        bestMoveUci: '',
-        currentDepth: 0,
-        principalVariation: <String>[],
-        moveEvaluations: <String>[],
-        multiPV: <List<String>>[],
         lastMoveFrom: null,
         lastMoveTo: null,
       );
-      
+
       // Update UI FIRST, then analyze
       _notifyStateChanged();
-      
+
       // Wait a moment for UI to update, then start analysis
       Future.delayed(const Duration(milliseconds: 50), () {
         if (!_disposed) {
@@ -1013,18 +1080,18 @@ class AnalysisController {
       try {
         final newIndex = _state.currentMoveIndex - 1;
         final historicalFen = _state.gameHistory[newIndex]['fen'] as String;
-        
+
         // Parse with dartchess to get canonical FEN
         final setup = Setup.parseFen(historicalFen);
         if (setup == null) {
           if (kDebugMode) debugPrint('Invalid FEN in history: $historicalFen');
           return;
         }
-        
+
         // Create canonical position and FEN
         _position = Position.setupPosition(Rule.chess, setup);
         final canonicalFen = _position!.fen;
-        
+
         // Sync chess_lib to canonical FEN
         try {
           _chess = chess_lib.Chess.fromFEN(canonicalFen);
@@ -1035,42 +1102,32 @@ class AnalysisController {
         // Sync variation tree
         _syncVariationTreeWithFen(canonicalFen);
 
-        // Update state with canonical FEN
+        // Update state with canonical FEN, keep previous analysis data visible
         _state = _state.copyWith(
           currentMoveIndex: newIndex,
           currentFen: canonicalFen,
           showBestMove: false,
           highlightedSquares: <Square>{},
           boardShapes: <Shape>{}.lock,
-          // Clear analysis data
-          evaluationScore: 0.0,
-          isMateScore: false,
-          mateInMoves: 0,
-          bestMove: '',
-          bestMoveUci: '',
-          currentDepth: 0,
-          principalVariation: <String>[],
-          moveEvaluations: <String>[],
-          multiPV: <List<String>>[],
           lastMoveFrom: null,
           lastMoveTo: null,
         );
-        
+
         // Update UI first
         _notifyStateChanged();
-        
+
         // Wait for UI update, then start analysis with proper cleanup
         Future.delayed(const Duration(milliseconds: 150), () async {
           if (!_disposed) {
             // Ensure any previous analysis is fully stopped before starting again
             await _analysisSubscription?.cancel();
             _analysisSubscription = null;
-            
+
             // Reset any stale analysis state
             if (_stockfishService.isAnalyzing) {
               await _stockfishService.stopAnalysis();
             }
-            
+
             _analyzePosition();
           }
         });
@@ -1081,7 +1138,8 @@ class AnalysisController {
   }
 
   void goForwardOneMove() {
-    if (_state.currentMoveIndex < _state.gameHistory.length - 1 && !_state.isInvalidPosition) {
+    if (_state.currentMoveIndex < _state.gameHistory.length - 1 &&
+        !_state.isInvalidPosition) {
       try {
         final newIndex = _state.currentMoveIndex + 1;
         final historicalFen = _state.gameHistory[newIndex]['fen'] as String;
@@ -1107,30 +1165,20 @@ class AnalysisController {
         // Sync variation tree
         _syncVariationTreeWithFen(canonicalFen);
 
-        // Update state with canonical FEN
+        // Update state with canonical FEN, keep previous analysis data visible
         _state = _state.copyWith(
           currentMoveIndex: newIndex,
-          currentFen: canonicalFen,  // Use canonical FEN
+          currentFen: canonicalFen,
           showBestMove: false,
           highlightedSquares: <Square>{},
           boardShapes: <Shape>{}.lock,
-          // Clear analysis data
-          evaluationScore: 0.0,
-          isMateScore: false,
-          mateInMoves: 0,
-          bestMove: '',
-          bestMoveUci: '',
-          currentDepth: 0,
-          principalVariation: <String>[],
-          moveEvaluations: <String>[],
-          multiPV: <List<String>>[],
           lastMoveFrom: null,
           lastMoveTo: null,
         );
-        
+
         // Update UI first
         _notifyStateChanged();
-        
+
         // Wait for UI update, then start analysis with debouncing
         Future.delayed(const Duration(milliseconds: 100), () {
           if (!_disposed) {
@@ -1170,30 +1218,20 @@ class AnalysisController {
         // Sync variation tree
         _syncVariationTreeWithFen(canonicalFen);
 
-        // Update state with canonical FEN
+        // Update state with canonical FEN, keep previous analysis data visible
         _state = _state.copyWith(
           currentMoveIndex: newIndex,
-          currentFen: canonicalFen,  // Use canonical FEN
+          currentFen: canonicalFen,
           showBestMove: false,
           highlightedSquares: <Square>{},
           boardShapes: <Shape>{}.lock,
-          // Clear analysis data
-          evaluationScore: 0.0,
-          isMateScore: false,
-          mateInMoves: 0,
-          bestMove: '',
-          bestMoveUci: '',
-          currentDepth: 0,
-          principalVariation: <String>[],
-          moveEvaluations: <String>[],
-          multiPV: <List<String>>[],
           lastMoveFrom: null,
           lastMoveTo: null,
         );
-        
+
         // Update UI first
         _notifyStateChanged();
-        
+
         // Wait for UI update, then start analysis with debouncing
         Future.delayed(const Duration(milliseconds: 100), () {
           if (!_disposed) {
@@ -1211,7 +1249,8 @@ class AnalysisController {
     if (_disposed || _state.isInvalidPosition) return;
 
     try {
-      if (kDebugMode) debugPrint('VARIATION_TREE: Navigating to node with FEN: ${node.fen}');
+      if (kDebugMode)
+        debugPrint('VARIATION_TREE: Navigating to node with FEN: ${node.fen}');
 
       // Update current variation node for UI synchronization
       _currentVariationNode = node;
@@ -1234,7 +1273,8 @@ class AnalysisController {
       // Parse the FEN to update position
       final setup = Setup.parseFen(node.fen);
       if (setup == null) {
-        if (kDebugMode) debugPrint('VARIATION_TREE: Invalid FEN in node: ${node.fen}');
+        if (kDebugMode)
+          debugPrint('VARIATION_TREE: Invalid FEN in node: ${node.fen}');
         return;
       }
 
@@ -1246,10 +1286,11 @@ class AnalysisController {
       try {
         _chess = chess_lib.Chess.fromFEN(canonicalFen);
       } catch (e) {
-        if (kDebugMode) debugPrint('VARIATION_TREE: Could not sync chess_lib: $e');
+        if (kDebugMode)
+          debugPrint('VARIATION_TREE: Could not sync chess_lib: $e');
       }
 
-      // Update state with proper game history
+      // Update state with proper game history, keep previous analysis data visible
       _state = _state.copyWith(
         currentFen: canonicalFen,
         gameHistory: newGameHistory,
@@ -1257,16 +1298,6 @@ class AnalysisController {
         showBestMove: false,
         highlightedSquares: <Square>{},
         boardShapes: <Shape>{}.lock,
-        // Clear analysis data for clean restart
-        evaluationScore: 0.0,
-        isMateScore: false,
-        mateInMoves: 0,
-        bestMove: '',
-        bestMoveUci: '',
-        currentDepth: 0,
-        principalVariation: <String>[],
-        moveEvaluations: <String>[],
-        multiPV: <List<String>>[],
         lastMoveFrom: null,
         lastMoveTo: null,
       );
@@ -1275,8 +1306,10 @@ class AnalysisController {
 
       // Debug navigation state
       if (kDebugMode) {
-        debugPrint('VARIATION_TREE: After navigation - currentMoveIndex: ${_state.currentMoveIndex}, gameHistoryLength: ${_state.gameHistory.length}');
-        debugPrint('VARIATION_TREE: Can go back: ${_state.currentMoveIndex > 0}, Can go forward: ${_state.currentMoveIndex < _state.gameHistory.length - 1}');
+        debugPrint(
+            'VARIATION_TREE: After navigation - currentMoveIndex: ${_state.currentMoveIndex}, gameHistoryLength: ${_state.gameHistory.length}');
+        debugPrint(
+            'VARIATION_TREE: Can go back: ${_state.currentMoveIndex > 0}, Can go forward: ${_state.currentMoveIndex < _state.gameHistory.length - 1}');
       }
 
       // Start fresh analysis for the new position
@@ -1285,26 +1318,30 @@ class AnalysisController {
           _analyzePositionSafely();
         }
       });
-
     } catch (e) {
-      if (kDebugMode) debugPrint('VARIATION_TREE: Error navigating to node: $e');
+      if (kDebugMode)
+        debugPrint('VARIATION_TREE: Error navigating to node: $e');
     }
   }
 
   void addMoveToVariationTree(MoveNode parentNode, Move move) {
-    if (_disposed || _state.isInvalidPosition || _variationTreeRoot == null) return;
+    if (_disposed || _state.isInvalidPosition || _variationTreeRoot == null)
+      return;
 
     try {
-      if (kDebugMode) debugPrint('VARIATION_TREE: Adding move ${move.toString()} to tree');
+      if (kDebugMode)
+        debugPrint('VARIATION_TREE: Adding move ${move.toString()} to tree');
 
       final newNode = parentNode.addMove(move);
       _currentVariationNode = newNode;
 
-      if (kDebugMode) debugPrint('VARIATION_TREE: Move added, new node FEN: ${newNode.fen}');
+      if (kDebugMode)
+        debugPrint('VARIATION_TREE: Move added, new node FEN: ${newNode.fen}');
 
       _notifyStateChanged();
     } catch (e) {
-      if (kDebugMode) debugPrint('VARIATION_TREE: Error adding move to tree: $e');
+      if (kDebugMode)
+        debugPrint('VARIATION_TREE: Error adding move to tree: $e');
     }
   }
 
@@ -1313,10 +1350,14 @@ class AnalysisController {
       final node = _variationTreeRoot!.findByFen(fen);
       if (node != null) {
         _currentVariationNode = node;
-        if (kDebugMode) debugPrint('VARIATION_TREE: Synced to node with FEN: $fen');
-        if (kDebugMode) debugPrint('VARIATION_TREE: Current node has ${node.variations.length} variations');
+        if (kDebugMode)
+          debugPrint('VARIATION_TREE: Synced to node with FEN: $fen');
+        if (kDebugMode)
+          debugPrint(
+              'VARIATION_TREE: Current node has ${node.variations.length} variations');
       } else {
-        if (kDebugMode) debugPrint('VARIATION_TREE: No node found for FEN: $fen');
+        if (kDebugMode)
+          debugPrint('VARIATION_TREE: No node found for FEN: $fen');
         if (kDebugMode) debugPrint('VARIATION_TREE: Staying at current node');
       }
     }
@@ -1327,22 +1368,18 @@ class AnalysisController {
     if (_disposed || _state.isInvalidPosition || _position == null) return;
 
     try {
-      if (kDebugMode && false) debugPrint('Chessground move: ${move.from.name} -> ${move.to.name}');
-      
       final piece = _position!.board.pieceAt(move.from);
-      if (kDebugMode && false) debugPrint('Piece being moved: ${piece?.role.name} (${piece?.color.name})');
-      
+
       // Check for standard castling move
       final actualMove = _convertCastlingMove(move);
-      
+
       // Check for pawn promotion using dartchess
-      final isPromotion = piece != null && 
-                         piece.role == Role.pawn && 
-                         ((piece.color == Side.white && actualMove.to.rank == Rank.eighth) ||
-                          (piece.color == Side.black && actualMove.to.rank == Rank.first));
-      
+      final isPromotion = piece != null &&
+          piece.role == Role.pawn &&
+          ((piece.color == Side.white && actualMove.to.rank == Rank.eighth) ||
+              (piece.color == Side.black && actualMove.to.rank == Rank.first));
+
       if (isPromotion) {
-        if (kDebugMode && false) debugPrint('Pawn promotion detected');
         _state = _state.copyWith(
           pendingPromotionMove: actualMove,
           awaitingPromotion: true,
@@ -1350,17 +1387,14 @@ class AnalysisController {
         _notifyStateChanged();
         return;
       }
-      
+
       // Validate move
       if (!_position!.isLegal(actualMove)) {
-        if (kDebugMode && false) debugPrint('Invalid move attempted: ${actualMove.from.name} -> ${actualMove.to.name}');
         _notifyStateChanged();
         return;
       }
-      
-      if (kDebugMode && false) debugPrint('Move successful');
+
       _completeMoveAndAnalyze(actualMove);
-      
     } catch (e) {
       if (kDebugMode) debugPrint('Error in onMove: $e');
       _notifyStateChanged();
@@ -1371,51 +1405,56 @@ class AnalysisController {
   /// (g1/c1/g8/c8 -> rook destinations that dartchess expects)
   NormalMove _convertCastlingMove(NormalMove move) {
     final piece = _position!.board.pieceAt(move.from);
-    
+
     // Only convert for king moves
     if (piece?.role != Role.king) {
       return move;
     }
-    
+
     try {
       // Check for standard castling destinations
       if (move.from == Square.e1) {
         // White king castling
         if (move.to == Square.g1) {
           // King-side castling: convert g1 to h1 (rook destination)
-          if (kDebugMode) debugPrint('CASTLING: Converting white king-side castle g1 -> h1');
+          if (kDebugMode)
+            debugPrint('CASTLING: Converting white king-side castle g1 -> h1');
           return NormalMove(from: move.from, to: Square.h1);
         } else if (move.to == Square.c1) {
           // Queen-side castling: convert c1 to a1 (rook destination)
-          if (kDebugMode) debugPrint('CASTLING: Converting white queen-side castle c1 -> a1');
+          if (kDebugMode)
+            debugPrint('CASTLING: Converting white queen-side castle c1 -> a1');
           return NormalMove(from: move.from, to: Square.a1);
         }
       } else if (move.from == Square.e8) {
         // Black king castling
         if (move.to == Square.g8) {
           // King-side castling: convert g8 to h8 (rook destination)
-          if (kDebugMode) debugPrint('CASTLING: Converting black king-side castle g8 -> h8');
+          if (kDebugMode)
+            debugPrint('CASTLING: Converting black king-side castle g8 -> h8');
           return NormalMove(from: move.from, to: Square.h8);
         } else if (move.to == Square.c8) {
           // Queen-side castling: convert c8 to a8 (rook destination)
-          if (kDebugMode) debugPrint('CASTLING: Converting black queen-side castle c8 -> a8');
+          if (kDebugMode)
+            debugPrint('CASTLING: Converting black queen-side castle c8 -> a8');
           return NormalMove(from: move.from, to: Square.a8);
         }
       }
     } catch (e) {
       if (kDebugMode) debugPrint('Error converting castling move: $e');
     }
-    
+
     // Return original move if not a standard castling destination
     return move;
   }
 
   void onPromotionSelection(Role? role) {
-    if (_disposed || !_state.awaitingPromotion || _state.pendingPromotionMove == null || role == null) return;
+    if (_disposed ||
+        !_state.awaitingPromotion ||
+        _state.pendingPromotionMove == null ||
+        role == null) return;
 
     try {
-      if (kDebugMode && false) debugPrint('Promotion selected: ${role.name}');
-      
       final move = _state.pendingPromotionMove;
       if (move is! NormalMove) {
         if (kDebugMode) debugPrint('Invalid promotion move type');
@@ -1426,15 +1465,15 @@ class AnalysisController {
         _notifyStateChanged();
         return;
       }
-      
+
       // Create promotion move
       final promotionMove = NormalMove(
         from: move.from,
         to: move.to,
         promotion: role,
       );
-      
-      // Validate promotion move 
+
+      // Validate promotion move
       if (!_position!.isLegal(promotionMove)) {
         if (kDebugMode) debugPrint('Invalid promotion move');
         _state = _state.copyWith(
@@ -1444,9 +1483,8 @@ class AnalysisController {
         _notifyStateChanged();
         return;
       }
-      
+
       _completeMoveAndAnalyze(promotionMove);
-      
     } catch (e) {
       if (kDebugMode) debugPrint('Error in promotion: $e');
       _state = _state.copyWith(
@@ -1459,33 +1497,36 @@ class AnalysisController {
 
   void _completeMoveAndAnalyze(Move move) {
     if (_position == null) return;
-    
+
     try {
       _position = _position!.play(move);
       final canonicalFen = _position!.fen;
-      if (kDebugMode) debugPrint('MOVE: Move made, new canonical FEN: $canonicalFen');
-      
+      if (kDebugMode)
+        debugPrint('MOVE: Move made, new canonical FEN: $canonicalFen');
+
       // Sync chess_lib for UI display only
       if (_chess != null) {
         try {
           _chess = chess_lib.Chess.fromFEN(canonicalFen);
           if (kDebugMode) debugPrint('MOVE: chess_lib synced successfully');
         } catch (e) {
-          if (kDebugMode) debugPrint('MOVE: Could not sync chess_lib for UI: $e');
+          if (kDebugMode)
+            debugPrint('MOVE: Could not sync chess_lib for UI: $e');
           // Continue without chess_lib if sync fails
         }
       }
-      
+
       // Add move to history
       final gameHistory = List<Map<String, dynamic>>.from(_state.gameHistory);
       if (_state.currentMoveIndex < gameHistory.length - 1) {
-        gameHistory.removeRange(_state.currentMoveIndex + 1, gameHistory.length);
+        gameHistory.removeRange(
+            _state.currentMoveIndex + 1, gameHistory.length);
       }
 
       String fromSquare = '';
       String toSquare = '';
       String moveUci = '';
-      
+
       if (move is NormalMove) {
         fromSquare = move.from.name;
         toSquare = move.to.name;
@@ -1493,7 +1534,7 @@ class AnalysisController {
       }
 
       gameHistory.add({
-        'fen': canonicalFen,  // Store FEN
+        'fen': canonicalFen, // Store FEN
         'move': moveUci,
         'fromSquare': fromSquare,
         'toSquare': toSquare,
@@ -1502,7 +1543,7 @@ class AnalysisController {
       _state = _state.copyWith(
         gameHistory: gameHistory,
         currentMoveIndex: gameHistory.length - 1,
-        currentFen: canonicalFen,  // State FEN matches dartchess FEN exactly
+        currentFen: canonicalFen, // State FEN matches dartchess FEN exactly
         showBestMove: false,
         highlightedSquares: <Square>{},
         boardShapes: <Shape>{}.lock,
@@ -1513,21 +1554,25 @@ class AnalysisController {
         lastMoveTo: move is NormalMove ? move.to : null,
       );
 
-      if (kDebugMode && false) debugPrint('Move made. History length: ${gameHistory.length}');
-      if (kDebugMode && false) debugPrint('Current move index: ${_state.currentMoveIndex}');
-
       // Update variation tree
       if (_currentVariationNode != null && _variationTreeRoot != null) {
         try {
           final newVariationNode = _currentVariationNode!.addMove(move);
           _currentVariationNode = newVariationNode;
-          if (kDebugMode) debugPrint('VARIATION_TREE: Move added to tree: ${move.toString()}');
-          if (kDebugMode) debugPrint('VARIATION_TREE: Root now has ${_variationTreeRoot!.variations.length} variations');
+          if (kDebugMode)
+            debugPrint(
+                'VARIATION_TREE: Move added to tree: ${move.toString()}');
+          if (kDebugMode)
+            debugPrint(
+                'VARIATION_TREE: Root now has ${_variationTreeRoot!.variations.length} variations');
         } catch (e) {
-          if (kDebugMode) debugPrint('VARIATION_TREE: Error adding move to tree: $e');
+          if (kDebugMode)
+            debugPrint('VARIATION_TREE: Error adding move to tree: $e');
         }
       } else {
-        if (kDebugMode) debugPrint('VARIATION_TREE: Cannot add move - currentNode=${_currentVariationNode != null}, root=${_variationTreeRoot != null}');
+        if (kDebugMode)
+          debugPrint(
+              'VARIATION_TREE: Cannot add move - currentNode=${_currentVariationNode != null}, root=${_variationTreeRoot != null}');
       }
 
       _notifyStateChanged();
@@ -1547,28 +1592,29 @@ class AnalysisController {
   // Build valid moves map for chessground
   IMap<Square, ISet<Square>> buildValidMovesMap() {
     final validMovesMap = <Square, ISet<Square>>{};
-    
+
     if (_position == null) return validMovesMap.lock;
-    
+
     try {
       final legalMovesIMap = _position!.legalMoves;
-      
+
       for (final entry in legalMovesIMap.entries) {
         final fromSquare = entry.key;
         final toSquares = entry.value;
-        
+
         final toSquaresList = <Square>[];
         for (final square in toSquares.squares) {
           toSquaresList.add(square);
         }
-        
+
         // Add standard castling destinations for kings
         final piece = _position!.board.pieceAt(fromSquare);
         if (piece?.role == Role.king) {
-          final castlingSquares = _getStandardCastlingSquares(fromSquare, toSquaresList);
+          final castlingSquares =
+              _getStandardCastlingSquares(fromSquare, toSquaresList);
           toSquaresList.addAll(castlingSquares);
         }
-        
+
         if (toSquaresList.isNotEmpty) {
           validMovesMap[fromSquare] = toSquaresList.toISet();
         }
@@ -1576,15 +1622,16 @@ class AnalysisController {
     } catch (e) {
       if (kDebugMode) debugPrint('Error building valid moves: $e');
     }
-    
+
     return validMovesMap.lock;
   }
 
   /// Get standard castling destination squares (g1/c1 for white, g8/c8 for black)
   /// when castling to rook squares is legal
-  List<Square> _getStandardCastlingSquares(Square kingSquare, List<Square> legalMoves) {
+  List<Square> _getStandardCastlingSquares(
+      Square kingSquare, List<Square> legalMoves) {
     final castlingSquares = <Square>[];
-    
+
     try {
       // Check if king can castle by looking for rook destinations in legal moves
       if (kingSquare == Square.e1) {
@@ -1598,7 +1645,7 @@ class AnalysisController {
           castlingSquares.add(Square.c1);
         }
       } else if (kingSquare == Square.e8) {
-        // Black king on starting square  
+        // Black king on starting square
         if (legalMoves.contains(Square.h8)) {
           // King-side castling available - add g8 as destination
           castlingSquares.add(Square.g8);
@@ -1608,14 +1655,15 @@ class AnalysisController {
           castlingSquares.add(Square.c8);
         }
       }
-      
+
       if (castlingSquares.isNotEmpty && kDebugMode) {
-        debugPrint('CASTLING: Added standard destinations for ${kingSquare.name}: ${castlingSquares.map((s) => s.name).join(", ")}');
+        debugPrint(
+            'CASTLING: Added standard destinations for ${kingSquare.name}: ${castlingSquares.map((s) => s.name).join(", ")}');
       }
     } catch (e) {
       if (kDebugMode) debugPrint('Error determining castling squares: $e');
     }
-    
+
     return castlingSquares;
   }
 
@@ -1623,29 +1671,36 @@ class AnalysisController {
     if (_state.isInvalidPosition) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Cannot save invalid positions. Please edit and fix the position first.'),
+          content: Text(
+              'Cannot save invalid positions. Please edit and fix the position first.'),
           backgroundColor: AppColors.warningOrange,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
       return;
     }
-    
+
     final nameController = TextEditingController();
     String defaultName = _generatePositionName();
     nameController.text = defaultName;
-    
+
     final positionName = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: context.isDarkMode ? const Color(0xFF1a1a1a) : Colors.white,
+        backgroundColor:
+            context.isDarkMode ? const Color(0xFF1a1a1a) : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            Icon(Icons.bookmark_add_rounded, color: context.accentColor, size: 24),
+            Icon(Icons.bookmark_add_rounded,
+                color: context.accentColor, size: 24),
             const SizedBox(width: 8),
-            Text('Save Position', style: TextStyle(color: context.primaryTextColor, fontWeight: FontWeight.w600)),
+            Text('Save Position',
+                style: TextStyle(
+                    color: context.primaryTextColor,
+                    fontWeight: FontWeight.w600)),
           ],
         ),
         content: Column(
@@ -1675,7 +1730,8 @@ class AnalysisController {
                   borderSide: BorderSide(color: context.accentColor, width: 2),
                 ),
                 hintText: 'Enter a descriptive name...',
-                hintStyle: TextStyle(color: context.secondaryTextColor.withOpacity(0.7)),
+                hintStyle: TextStyle(
+                    color: context.secondaryTextColor.withOpacity(0.7)),
               ),
               autofocus: true,
               maxLength: 50,
@@ -1690,7 +1746,8 @@ class AnalysisController {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline_rounded, color: context.accentColor, size: 16),
+                  Icon(Icons.info_outline_rounded,
+                      color: context.accentColor, size: 16),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -1710,7 +1767,8 @@ class AnalysisController {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: TextStyle(color: context.secondaryTextColor)),
+            child: Text('Cancel',
+                style: TextStyle(color: context.secondaryTextColor)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -1721,7 +1779,8 @@ class AnalysisController {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: context.accentColor,
-              foregroundColor: context.isDarkMode ? Colors.black : AppColors.deepNavy,
+              foregroundColor:
+                  context.isDarkMode ? Colors.black : AppColors.deepNavy,
             ),
             child: const Text('Save'),
           ),
@@ -1745,14 +1804,16 @@ class AnalysisController {
             SnackBar(
               content: Row(
                 children: [
-                  Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                  Icon(Icons.check_circle_rounded,
+                      color: Colors.white, size: 20),
                   const SizedBox(width: 8),
                   Text('Position saved successfully!'),
                 ],
               ),
               backgroundColor: AppColors.successGreen,
               behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
               action: SnackBarAction(
                 label: 'View All',
                 textColor: Colors.white,
@@ -1775,7 +1836,8 @@ class AnalysisController {
               content: Text('Error saving position: ${e.toString()}'),
               backgroundColor: AppColors.errorRed,
               behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
           );
         }
@@ -1786,7 +1848,7 @@ class AnalysisController {
   String _generatePositionName() {
     try {
       final moveNumber = _state.gameHistory.length;
-      
+
       if (moveNumber <= 1) {
         return 'Starting Position';
       } else if (moveNumber <= 10) {
@@ -1832,19 +1894,19 @@ class AnalysisController {
 
     if (kDebugMode) debugPrint('AnalysisController disposed');
   }
-  
+
   void _stopAndResetStockfish() async {
     try {
       if (kDebugMode) debugPrint('CLEANUP: Stopping Stockfish service...');
-      
+
       // Stop any running analysis
       if (_stockfishService.isAnalyzing) {
         await _stockfishService.stopAnalysis();
       }
-      
+
       // Dispose the entire Stockfish service to reset its state
       await _stockfishService.dispose();
-      
+
       if (kDebugMode) debugPrint('CLEANUP: Stockfish service reset complete');
     } catch (e) {
       if (kDebugMode) debugPrint('CLEANUP: Error during Stockfish cleanup: $e');
