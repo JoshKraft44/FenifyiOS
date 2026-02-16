@@ -128,6 +128,21 @@ class _AnalysisContentWidgetState extends State<AnalysisContentWidget> {
   }
 
   Widget _buildBestMovesPage(BuildContext context) {
+    // Show checkmate image when position is checkmate
+    if (widget.controller.position?.isCheckmate == true) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Image.asset(
+            context.isDarkMode
+                ? 'assets/images/Checkmate2.png'
+                : 'assets/images/Checkmate1.png',
+            fit: BoxFit.contain,
+          ),
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(0, 4, 0, 16),
       child: Column(

@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io' as io;
-import '../services/image_processor.dart';
+import '../services/image_processing/image_processor.dart';
 
 /// Widget for capturing or selecting chess board images and processing them into FEN notation
 class ImageUploadWidget extends StatefulWidget {

@@ -223,36 +223,92 @@ class AnalysisWidgets {
     required bool isMateScore,
     required int mateInMoves,
   }) {
+    // Map evaluation to white fraction (0.0 = black winning, 1.0 = white winning)
+    double whiteFraction;
+    if (isMateScore) {
+      whiteFraction = mateInMoves > 0 ? 0.98 : 0.02;
+    } else {
+      whiteFraction = (0.5 + evaluationScore / 10.0).clamp(0.02, 0.98);
+    }
+
+    final evalText = isMateScore
+        ? 'Mate in ${mateInMoves.abs()} for ${mateInMoves > 0 ? 'White' : 'Black'}'
+        : '${evaluationScore >= 0 ? '+' : ''}${evaluationScore.toStringAsFixed(2)}';
+
+    const evalWhite = Color(0xFFF0F0F0);
+    const evalBlack = Color(0xFF1a1a1a);
+    const textStyle = TextStyle(fontWeight: FontWeight.w600, fontSize: 13);
+
+    // Show eval on the winning side
+    final bool whiteWinning = isMateScore ? mateInMoves > 0 : evaluationScore >= 0;
+    final textAlignment = whiteWinning ? Alignment.centerLeft : Alignment.centerRight;
+
     return Builder(
-      builder: (context) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: context.surfaceColor,
-          border: Border(
-            top: BorderSide(
-              color: context.borderColor,
-              width: 1.5,
-            ),
-            bottom: BorderSide(
-              color: context.borderColor,
-              width: 1.0,
-            ),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'Evaluation: ${isMateScore ? "Mate in ${mateInMoves.abs()} for ${mateInMoves > 0 ? 'White' : 'Black'}" : "${evaluationScore >= 0 ? '+' : ''}${evaluationScore.toStringAsFixed(2)}"}',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-                color: context.primaryTextColor,
+      builder: (context) => TweenAnimationBuilder<double>(
+        tween: Tween<double>(end: whiteFraction),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        builder: (context, value, _) {
+          return Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: evalBlack,
+              border: Border(
+                top: BorderSide(color: context.borderColor, width: 1.5),
+                bottom: BorderSide(color: context.borderColor, width: 1.0),
               ),
             ),
-          ],
-        ),
+            child: Stack(
+              children: [
+                // Invisible text for sizing
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Align(
+                    alignment: textAlignment,
+                    child: Text(evalText, style: textStyle.copyWith(color: Colors.transparent)),
+                  ),
+                ),
+                // White fill from left
+                Positioned.fill(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: FractionallySizedBox(
+                      widthFactor: value,
+                      heightFactor: 1.0,
+                      child: const ColoredBox(color: evalWhite),
+                    ),
+                  ),
+                ),
+                // Dark text on white portion
+                Positioned.fill(
+                  child: ClipRect(
+                    clipper: _EvalBarClipper(fraction: value, clipLeft: true),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Align(
+                        alignment: textAlignment,
+                        child: Text(evalText, style: textStyle.copyWith(color: evalBlack)),
+                      ),
+                    ),
+                  ),
+                ),
+                // Light text on dark portion
+                Positioned.fill(
+                  child: ClipRect(
+                    clipper: _EvalBarClipper(fraction: value, clipLeft: false),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Align(
+                        alignment: textAlignment,
+                        child: Text(evalText, style: textStyle.copyWith(color: evalWhite)),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -400,5 +456,26 @@ class AnalysisWidgets {
         ),
       ),
     );
+  }
+}
+
+class _EvalBarClipper extends CustomClipper<Rect> {
+  final double fraction;
+  final bool clipLeft;
+
+  _EvalBarClipper({required this.fraction, required this.clipLeft});
+
+  @override
+  Rect getClip(Size size) {
+    if (clipLeft) {
+      return Rect.fromLTWH(0, 0, size.width * fraction, size.height);
+    } else {
+      return Rect.fromLTWH(size.width * fraction, 0, size.width * (1 - fraction), size.height);
+    }
+  }
+
+  @override
+  bool shouldReclip(covariant _EvalBarClipper oldClipper) {
+    return oldClipper.fraction != fraction || oldClipper.clipLeft != clipLeft;
   }
 }
